@@ -1,4 +1,48 @@
-# 电影推荐系统部署文档
+# 电影推荐系统部署指南
+
+## 快速重启指南
+
+如果您已经完成部署，但服务无法正常访问，请按以下步骤重启系统：
+
+```bash
+# 停止服务
+sudo systemctl stop movie-recommender.service
+
+# 编辑服务配置文件
+sudo nano /etc/systemd/system/movie-recommender.service
+
+# 修改ExecStart行如下
+# ExecStart=/usr/bin/python3 /opt/recommender/web_server/main.py
+
+# 保存并退出(Ctrl+O, Enter, Ctrl+X)
+
+# 重载服务配置
+sudo systemctl daemon-reload
+
+# 启动服务
+sudo systemctl start movie-recommender.service
+
+# 检查服务状态
+sudo systemctl status movie-recommender.service
+
+# 查看详细日志
+sudo journalctl -u movie-recommender.service -f
+```
+
+如果仍然无法访问，检查防火墙设置：
+
+```bash
+# 开放80端口
+sudo ufw allow 80/tcp
+
+# 重启防火墙
+sudo ufw reload
+```
+
+## 电影推荐系统自动化部署指南
+
+> 作者：电影推荐系统团队
+> 日期：2023-05-20
 
 本文档将指导您如何在Ubuntu服务器上部署电影推荐系统。适合Linux新手按步骤操作。
 
@@ -108,7 +152,7 @@ git checkout -b new_branch_name
 mkdir -p /tmp/recommender
 
 # 下载项目代码（根据实际情况替换为你的Git地址）
-git clone https://github.com/your-repo/movie-recommender.git /tmp/recommender
+git clone https://github.com/Boulea7/Movie_recommender_wechat /tmp/recommender
 # 或者使用scp从本地上传
 # scp -r /path/to/local/recommender/* user@server:/tmp/recommender/
 ```
@@ -597,4 +641,66 @@ mysql -u douban_user -p'MySQL_20050816Zln@233' douban < $BACKUP_FILE
 2. 设置防火墙，仅开放必要端口
 3. 定期更新系统和依赖包
 4. 设置HTTPS提高安全性
-5. 定期备份重要数据 
+5. 定期备份重要数据
+
+### 4. 重启和维护系统
+
+如果您需要重启系统，可以使用以下命令：
+
+```bash
+# 重启电影推荐系统服务
+sudo systemctl restart movie-recommender.service
+
+# 查看服务状态
+sudo systemctl status movie-recommender.service
+
+# 查看日志
+sudo journalctl -u movie-recommender.service -f
+```
+
+如果遇到问题，可以检查日志文件：
+
+```bash
+# 查看Web服务器日志
+sudo cat /opt/recommender/logs/web_server.log
+
+# 查看数据库初始化日志
+sudo ls -la /opt/recommender/logs/db_init_*.log
+sudo cat /opt/recommender/logs/db_init_[最新日期].log
+```
+
+### 5. 常见问题排查
+
+#### 1. 服务无法启动
+
+检查服务状态和日志：
+```bash
+sudo systemctl status movie-recommender.service
+sudo journalctl -u movie-recommender.service -n 50
+```
+
+可能的原因和解决方法：
+- Python路径错误：修改服务文件中的Python路径
+- 权限问题：确保服务有足够的权限
+- 端口冲突：检查80端口是否被其他服务占用
+
+#### 2. 网页可以访问但微信无法连接
+
+- 检查微信公众号配置的URL是否正确
+- 确认服务器80端口是否对外开放
+- 验证Token配置是否正确（应与config/database.conf中的token一致）
+
+#### 3. 数据库连接失败
+
+```bash
+# 检查数据库服务是否运行
+sudo systemctl status mysql
+
+# 尝试手动连接数据库
+mysql -udouban_user -pMySQL_20050816Zln@233 -h localhost douban
+```
+
+可能的原因：
+- MySQL服务未启动
+- 数据库用户密码不正确
+- 数据库权限配置有误 

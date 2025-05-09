@@ -7,9 +7,48 @@ import time
 import os
 import random
 import pymysql
+import sys
+import logging
 
 import reply
 import receive
+from config_parser import ConfigParser
+
+# 获取当前脚本所在目录的绝对路径
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+CONFIG_PATH = os.path.join(PROJECT_ROOT, 'config', 'database.conf')
+LOGS_DIR = os.path.join(PROJECT_ROOT, 'logs')
+
+# 确保日志目录存在
+if not os.path.exists(LOGS_DIR):
+	try:
+		os.makedirs(LOGS_DIR)
+	except Exception as e:
+		print(f"无法创建日志目录: {e}")
+
+# 获取配置
+try:
+	config = ConfigParser(CONFIG_PATH)
+	DB_CONFIG = config.get_section('database')
+	SERVICE_CONFIG = config.get_section('service')
+	RECOMMENDER_CONFIG = config.get_section('recommender')
+	
+	# 设置日志
+	log_level = getattr(logging, SERVICE_CONFIG.get('log_level', 'INFO'))
+	logging.basicConfig(
+		level=log_level,
+		format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+		handlers=[
+			logging.StreamHandler(),
+			logging.FileHandler(os.path.join(LOGS_DIR, 'web_server.log'))
+		]
+	)
+	logger = logging.getLogger('web_server')
+	logger.info("配置加载成功")
+except Exception as e:
+	print(f"配置加载失败: {e}")
+	sys.exit(1)
 
 urls = (
 	'/', 'Main',
@@ -24,7 +63,7 @@ class Main(object):
 			timestamp = data.timestamp
 			nonce = data.nonce
 			echostr = data.echostr
-			token = "HelloMovieRecommender" #按照公众平台官网\基本配置中信息填写
+			token = SERVICE_CONFIG.get('token', "HelloMovieRecommender") #按照公众平台官网\基本配置中信息填写
 
 			list = [token, timestamp, nonce]
 			list.sort()
@@ -32,27 +71,39 @@ class Main(object):
 			sha1_str = ''.join(list).encode('utf-8')
 			sha1.update(sha1_str)
 			hashcode = sha1.hexdigest()
-			print("handle/GET func: hashcode, signature: ", hashcode, signature)
+			logger.info(f"验证请求: hashcode={hashcode}, signature={signature}")
 			if hashcode == signature:
 				return echostr
 			else:
 				return ""
-		except Exception as Argument:
-			return Argument
+		except Exception as e:
+			logger.error(f"GET请求处理失败: {e}")
+			return str(e)
 	def update_user_info(self, user_name):
-		self.db = pymysql.connect(host='localhost', port=3306, user='douban_user', password='MySQL_20050816Zln@233', db='douban', charset='utf8mb4')
-		self.cursor = self.db.cursor()
-		cmd = 'select * from user_info where wx_id = "{}";'.format(user_name)
-		self.cursor.execute(cmd)
-		results = self.cursor.fetchall()
-		if len(results) == 0:
-			cmd = 'insert into user_info(wx_id, start_time) values("{}", "{}");'.format(user_name, int(time.time()))
-			try:
-				self.cursor.execute(cmd)
-				self.db.commit()
-			except Exception as e:
-				self.db.rollback()
-				print(f"Error updating user info: {e}")
+		try:
+			self.db = pymysql.connect(
+				host=DB_CONFIG.get('host', 'localhost'),
+				port=int(DB_CONFIG.get('port', 3306)),
+				user=DB_CONFIG.get('user', 'douban_user'),
+				password=DB_CONFIG.get('password', 'MySQL_20050816Zln@233'),
+				db=DB_CONFIG.get('db', 'douban'),
+				charset=DB_CONFIG.get('charset', 'utf8mb4')
+			)
+			self.cursor = self.db.cursor()
+			cmd = 'select * from user_info where wx_id = "{}";'.format(user_name)
+			self.cursor.execute(cmd)
+			results = self.cursor.fetchall()
+			if len(results) == 0:
+				cmd = 'insert into user_info(wx_id, start_time) values("{}", "{}");'.format(user_name, int(time.time()))
+				try:
+					self.cursor.execute(cmd)
+					self.db.commit()
+					logger.info(f"添加新用户: {user_name}")
+				except Exception as e:
+					self.db.rollback()
+					logger.error(f"添加用户失败: {e}")
+		except Exception as e:
+			logger.error(f"更新用户信息失败: {e}")
 	def parse_cmd(self, recv_content):
 		recv_msg_buf = recv_content.split(' ')#格式标准化
 		recv_msg = []
@@ -93,7 +144,7 @@ class Main(object):
 						content = '评价成功，感谢您的支持。{}:{}分'.format(movie_name, nice)
 					except Exception as e:
 						self.db.rollback()
-						print(f"Error inserting rating: {e}")
+						logger.error(f"评价插入失败: {e}")
 						content	= '评价失败，请重新输入。{}:{}分'.format(movie_name, nice)
 				else:
 					cmd = 'update like_movie set liking={} where user_id={} and movie_id={};'.format(nice, user_id, movie_id)
@@ -103,7 +154,7 @@ class Main(object):
 						content = '更新评分成功。{}:{}分'.format(movie_name, nice)
 					except Exception as e:
 						self.db.rollback()
-						print(f"Error updating rating: {e}")
+						logger.error(f"评价更新失败: {e}")
 						content	= '评价失败，请重新输入。{}:{}分'.format(movie_name, nice)
 		return content
 	def recommend(self, user_name, recv_msg):
@@ -148,7 +199,7 @@ class Main(object):
 				neighbor_id = key
 			elif neighbor_id != -1 and val[1] != 0 and val[0] < areas[neighbor_id][0]:#更新
 				neighbor_id = key
-		print(areas)
+		logger.debug(f"用户相似度计算结果: {areas}")
 		if neighbor_id == -1:
 			return self.will(line)
 			#return "抱歉，由于您的评价次数过少，系统暂时推算不出您的兴趣爱好。\n请多多评价，过段时间再试。"
@@ -166,28 +217,20 @@ class Main(object):
 			cmd = 'select * from douban_movie where id={};'.format(mov_id)
 			self.cursor.execute(cmd)
 			result = self.cursor.fetchone()
-			title = result[1].encode("utf-8") if result[1] != None else ""
+			title = result[1] if result[1] != None else ""
 			score = result[2] if result[2] != None else 0
 			num = result[3] if result[3] != None else 0
-			link = result[4].encode("utf-8") if result[4] != None else ""
+			link = result[4] if result[4] != None else ""
 			date_time = result[5] if result[5] != None else ""
-			address = result[6].encode("utf-8") if result[6] != None else ""
-			other_address = result[7].encode("utf-8") if result[7] != None else ""
-			actors = result[8].encode("utf-8") if result[8] != None else ""
+			address = result[6] if result[6] != None else ""
+			other_address = result[7] if result[7] != None else ""
+			actors = result[8] if result[8] != None else ""
 			if score:
 				content += '{}\n{}\n{}\n{}\n{}\n评价人数:{}\n评分:{}\n{}\n\n'.format(
-					title.decode('utf-8'), date_time, 
-					address.decode('utf-8') if address else "", 
-					other_address.decode('utf-8') if other_address else "", 
-					actors.decode('utf-8') if actors else "", 
-					num, score, link.decode('utf-8'))
+					title, date_time, address, other_address, actors, num, score, link)
 			else:
 				content += '{}\n{}\n{}\n{}\n{}\n评价人数:{}\n{}\n\n'.format(
-					title.decode('utf-8'), date_time, 
-					address.decode('utf-8') if address else "", 
-					other_address.decode('utf-8') if other_address else "", 
-					actors.decode('utf-8') if actors else "", 
-					num, link.decode('utf-8'))
+					title, date_time, address, other_address, actors, num, link)
 		return content
 	def compute(self, line, line_other):
 		area=0.0
@@ -220,20 +263,16 @@ class Main(object):
 				max_score_addr = index
 				max_score = row[2]
 			index += 1
-		title = results[max_score_addr][1].encode("utf-8") if results[max_score_addr][1] != None else ""
+		title = results[max_score_addr][1] if results[max_score_addr][1] != None else ""
 		score = results[max_score_addr][2] if results[max_score_addr][2] != None else 0
 		num = results[max_score_addr][3] if results[max_score_addr][3] != None else 0
-		link = results[max_score_addr][4].encode("utf-8") if results[max_score_addr][4] != None else ""
+		link = results[max_score_addr][4] if results[max_score_addr][4] != None else ""
 		date_time = results[max_score_addr][5] if results[max_score_addr][5] != None else ""
-		address = results[max_score_addr][6].encode("utf-8") if results[max_score_addr][6] != None else ""
-		other_address = results[max_score_addr][7].encode("utf-8") if results[max_score_addr][7] != None else ""
-		actors = results[max_score_addr][8].encode("utf-8") if results[max_score_addr][8] != None else ""
+		address = results[max_score_addr][6] if results[max_score_addr][6] != None else ""
+		other_address = results[max_score_addr][7] if results[max_score_addr][7] != None else ""
+		actors = results[max_score_addr][8] if results[max_score_addr][8] != None else ""
 		content = '{}\n{}\n{}\n{}\n{}\n评价人数:{}\n评分:{}\n{}\n为提高您的推荐质量，请您多使用评价功能。另外，您评价过的电影不会再次推荐给您。\n'.format(
-			title.decode('utf-8'), date_time, 
-			address.decode('utf-8') if address else "", 
-			other_address.decode('utf-8') if other_address else "", 
-			actors.decode('utf-8') if actors else "", 
-			num, score, link.decode('utf-8'))
+			title, date_time, address, other_address, actors, num, score, link)
 		return content
 	def search(self, user_name, recv_msg):
 		return self.browse(user_name, recv_msg[1:])
@@ -243,31 +282,23 @@ class Main(object):
 		cmd = 'select * from douban_movie where title like "{}";'.format(movie_name)#精准查找
 		self.cursor.execute(cmd)
 		results = self.cursor.fetchall()
-		#print 'select "{}" have results num:{}.'.format(movie_name, len(results))
+		logger.info(f'查找电影 "{movie_name}" 结果数量: {len(results)}')
 		if len(results):
 			for row in results:
-				title = row[1].encode("utf-8") if row[1] != None else ""
+				title = row[1] if row[1] != None else ""
 				score = row[2] if row[2] != None else 0
 				num = row[3] if row[3] != None else 0
-				link = row[4].encode("utf-8") if row[4] != None else ""
+				link = row[4] if row[4] != None else ""
 				date_time = row[5] if row[5] != None else ""
-				address = row[6].encode("utf-8") if row[6] != None else ""
-				other_address = row[7].encode("utf-8") if row[7] != None else ""
-				actors = row[8].encode("utf-8") if row[8] != None else ""
+				address = row[6] if row[6] != None else ""
+				other_address = row[7] if row[7] != None else ""
+				actors = row[8] if row[8] != None else ""
 				if score:
 					content += '{}\n{}\n{}\n{}\n{}\n评价人数:{}\n评分:{}\n{}\n\n'.format(
-						title.decode('utf-8'), date_time, 
-						address.decode('utf-8') if address else "", 
-						other_address.decode('utf-8') if other_address else "", 
-						actors.decode('utf-8') if actors else "", 
-						num, score, link.decode('utf-8'))
+						title, date_time, address, other_address, actors, num, score, link)
 				else:
 					content += '{}\n{}\n{}\n{}\n{}\n评价人数:{}\n{}\n\n'.format(
-						title.decode('utf-8'), date_time, 
-						address.decode('utf-8') if address else "", 
-						other_address.decode('utf-8') if other_address else "", 
-						actors.decode('utf-8') if actors else "", 
-						num, link.decode('utf-8'))
+						title, date_time, address, other_address, actors, num, link)
 			cmd = 'select id from user_info where wx_id = "{}";'.format(user_name)#更新查找记录
 			self.cursor.execute(cmd)
 			results = self.cursor.fetchall()
@@ -283,31 +314,27 @@ class Main(object):
 					self.db.commit()
 				except Exception as e:
 					self.db.rollback()
-					print(f"Error inserting search record: {e}")
+					logger.error(f"搜索记录插入失败: {e}")
 		else:#模糊查找
 			cmd = 'select * from douban_movie where title like "%{}%" limit 5;'.format(movie_name)
 			self.cursor.execute(cmd)
 			results = self.cursor.fetchall()
-			print('like "{}" have results num:{}.'.format(movie_name, len(results)))
+			logger.info(f'模糊查找电影 "{movie_name}" 结果数量: {len(results)}')
 			if len(results) == 0:
 				content = "抱歉，暂时没有收录该影片。"#找不到
 			else:
 				content = "您在找的可能是：\n"#模糊匹配到
 				for row in results:
-					title = row[1].encode("utf-8") if row[1] != None else ""
+					title = row[1] if row[1] != None else ""
 					score = row[2] if row[2] != None else 0
 					num = row[3] if row[3] != None else 0
-					link = row[4].encode("utf-8") if row[4] != None else ""
+					link = row[4] if row[4] != None else ""
 					date_time = row[5] if row[5] != None else ""
-					address = row[6].encode("utf-8") if row[6] != None else ""
-					other_address = row[7].encode("utf-8") if row[7] != None else ""
-					actors = row[8].encode("utf-8") if row[8] != None else ""
+					address = row[6] if row[6] != None else ""
+					other_address = row[7] if row[7] != None else ""
+					actors = row[8] if row[8] != None else ""
 					content += '{}\n{}\n{}\n{}\n{}\n评价人数:{}\n评分:{}\n{}\n\n'.format(
-						title.decode('utf-8'), date_time, 
-						address.decode('utf-8') if address else "", 
-						other_address.decode('utf-8') if other_address else "", 
-						actors.decode('utf-8') if actors else "", 
-						num, score, link.decode('utf-8'))
+						title, date_time, address, other_address, actors, num, score, link)
 		return content
 
 	def on_text(self, recMsg):
@@ -339,57 +366,83 @@ class Main(object):
 		return content
 
 	def on_event(self, recMsg):
-		#print recMsg.Event
 		content = ""
 		if recMsg.Event == "subscribe":
-			db = pymysql.connect(host='localhost', port=3306, user='douban_user', password='MySQL_20050816Zln@233', db='douban', charset='utf8mb4')
-			cursor = db.cursor()
-			cmd = 'select * from user_info where wx_id = "{}";'.format(recMsg.FromUserName)
-			cursor.execute(cmd)
-			results = cursor.fetchall()
-			if len(results) == 0:
-				cmd = 'insert into user_info(wx_id, start_time) values("{}", "{}");'.format(recMsg.FromUserName, int(time.time()))
-				try:
-					cursor.execute(cmd)
-					db.commit()
-				except Exception as e:
-					db.rollback()
-					print(f"Error inserting new user: {e}")
-			db.close()
+			try:
+				db = pymysql.connect(
+					host=DB_CONFIG.get('host', 'localhost'),
+					port=int(DB_CONFIG.get('port', 3306)),
+					user=DB_CONFIG.get('user', 'douban_user'),
+					password=DB_CONFIG.get('password', 'MySQL_20050816Zln@233'),
+					db=DB_CONFIG.get('db', 'douban'),
+					charset=DB_CONFIG.get('charset', 'utf8mb4')
+				)
+				cursor = db.cursor()
+				cmd = 'select * from user_info where wx_id = "{}";'.format(recMsg.FromUserName)
+				cursor.execute(cmd)
+				results = cursor.fetchall()
+				if len(results) == 0:
+					cmd = 'insert into user_info(wx_id, start_time) values("{}", "{}");'.format(recMsg.FromUserName, int(time.time()))
+					try:
+						cursor.execute(cmd)
+						db.commit()
+						logger.info(f"用户订阅：添加新用户 {recMsg.FromUserName}")
+					except Exception as e:
+						db.rollback()
+						logger.error(f"用户订阅：添加用户失败: {e}")
+				db.close()
+			except Exception as e:
+				logger.error(f"用户订阅事件处理失败: {e}", exc_info=True)
+				
 			content = "感谢您的关注与支持，评价电影超过一定次数后，本平台将为您提供个性化推荐服务。您可以发送以下内容给我：\n搜索 无问西东\n评价 秦时明月 8.9\n推荐\n怎么用"
 			return content
 		elif recMsg.Event == "unsubscribe":
+			logger.info(f"用户取消订阅: {recMsg.FromUserName}")
 			return content
 		else:
+			logger.info(f"收到其他事件: {recMsg.Event} 来自用户: {recMsg.FromUserName}")
 			return content
 
 	def POST(self):
 		try:
 			webData = web.data()
-			#print webData
+			logger.info(f"收到POST请求：{len(webData)}字节")
 			content = ""
 			recMsg = receive.parse_xml(webData)
 			toUser = recMsg.FromUserName
 			fromUser = recMsg.ToUserName
 			if isinstance(recMsg, receive.Msg) and recMsg.MsgType == 'text':#主要业务逻辑
+				logger.info(f"收到文本消息：{recMsg.Content}")
 				content = self.on_text(recMsg)
 			elif isinstance(recMsg, receive.Msg) and recMsg.MsgType == 'image':
+				logger.info(f"收到图片消息")
 				content = self.on_image(recMsg)
 			elif isinstance(recMsg, receive.Msg) and recMsg.MsgType == 'event':
+				logger.info(f"收到事件：{recMsg.Event}")
 				content = self.on_event(recMsg)
 			else:
-				print("暂不支持")
+				logger.warning(f"不支持的消息类型: {recMsg.MsgType if hasattr(recMsg, 'MsgType') else '未知'}")
 				return "success"
 
 			if content == "":
 				return "success"
+			
+			logger.info(f"回复消息: {content[:50]}...")
 			replyMsg = reply.TextMsg(toUser, fromUser, content)
 			data = replyMsg.send()
 			return data
-		except Exception as Argument:
-			print("fail, but I pretend to be success.")
+		except Exception as e:
+			logger.error(f"处理POST请求失败: {e}", exc_info=True)
 			return "success"
 
 if __name__ == '__main__':
-	app = web.application(urls, globals())
-	app.run()
+	try:
+		# 设置监听所有接口(0.0.0.0)而不是默认的localhost，端口设为80
+		web.config.debug = False  # 生产环境关闭调试
+		app = web.application(urls, globals())
+		port = int(SERVICE_CONFIG.get('port', 80))
+		logger.info(f"启动Web服务器，监听地址：0.0.0.0:{port}")
+		web.httpserver.runsimple(app.wsgifunc(), ('0.0.0.0', port))
+	except Exception as e:
+		logger.critical(f"服务器启动失败: {e}", exc_info=True)
+		sys.exit(1)

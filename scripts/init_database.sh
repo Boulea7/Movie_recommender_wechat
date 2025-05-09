@@ -125,21 +125,50 @@ CREATE TABLE IF NOT EXISTS user_info (
 
 # 用户评分表
 $MYSQL_CMD $DB_NAME -e "
-CREATE TABLE IF NOT EXISTS user_rating (
+CREATE TABLE IF NOT EXISTS like_movie (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    wx_id VARCHAR(50) NOT NULL,
+    user_id INT NOT NULL,
     movie_id INT NOT NULL,
-    rating FLOAT NOT NULL,
-    rating_time INT NOT NULL,
-    INDEX (wx_id),
+    liking FLOAT DEFAULT NULL,
+    INDEX (user_id),
     INDEX (movie_id),
-    UNIQUE KEY user_movie (wx_id, movie_id)
+    UNIQUE KEY user_movie (user_id, movie_id)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+" 2>> "$LOG_FILE"
+
+# 搜索记录表
+$MYSQL_CMD $DB_NAME -e "
+CREATE TABLE IF NOT EXISTS seek_movie (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    movie_id INT NOT NULL,
+    seek_time INT NOT NULL,
+    INDEX (user_id),
+    INDEX (movie_id)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+" 2>> "$LOG_FILE"
+
+# 主电影表
+$MYSQL_CMD $DB_NAME -e "
+CREATE TABLE IF NOT EXISTS douban_movie (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(100) NOT NULL,
+    score FLOAT DEFAULT NULL,
+    num INT DEFAULT 0,
+    link VARCHAR(200) DEFAULT NULL,
+    time VARCHAR(50) DEFAULT NULL,
+    address VARCHAR(200) DEFAULT NULL,
+    other_address VARCHAR(200) DEFAULT NULL,
+    actors TEXT,
+    director VARCHAR(100) DEFAULT NULL,
+    category VARCHAR(50) DEFAULT NULL,
+    INDEX (title)
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 " 2>> "$LOG_FILE"
 
 # 运行电影数据处理脚本
 log_info "处理电影数据..." | tee -a "$LOG_FILE"
 cd "$PROJECT_ROOT"
-python data_spider/create_target_table.py 2>> "$LOG_FILE"
+python3 data_spider/create_target_table.py 2>> "$LOG_FILE"
 
 log_info "数据库初始化完成!" | tee -a "$LOG_FILE" 

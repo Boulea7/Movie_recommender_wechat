@@ -64,16 +64,21 @@ fi
 # 安装必要的系统依赖
 log_info "安装系统依赖..." | tee -a "$LOG_FILE"
 apt-get update | tee -a "$LOG_FILE"
-apt-get install -y python python-pip mysql-client libmysqlclient-dev | tee -a "$LOG_FILE"
+apt-get install -y python3 python3-pip mysql-client libmysqlclient-dev | tee -a "$LOG_FILE"
 
 # 复制项目文件到安装目录
 log_info "复制项目文件到安装目录..." | tee -a "$LOG_FILE"
 cp -r "$PROJECT_ROOT"/* "$INSTALL_DIR"/ | tee -a "$LOG_FILE"
 
+# 确保日志目录存在
+log_info "创建日志目录..." | tee -a "$LOG_FILE"
+mkdir -p "$INSTALL_DIR/logs" | tee -a "$LOG_FILE"
+chmod 755 "$INSTALL_DIR/logs" | tee -a "$LOG_FILE"
+
 # 安装Python依赖
 log_info "安装Python依赖..." | tee -a "$LOG_FILE"
 cd "$INSTALL_DIR" | tee -a "$LOG_FILE"
-pip install -r requirements.txt | tee -a "$LOG_FILE"
+pip3 install -r requirements.txt | tee -a "$LOG_FILE"
 
 # 确保脚本具有执行权限
 log_info "设置脚本执行权限..." | tee -a "$LOG_FILE"
@@ -94,12 +99,15 @@ After=network.target mysql.service
 Type=simple
 User=root
 WorkingDirectory=$INSTALL_DIR
-ExecStart=/usr/bin/python $INSTALL_DIR/web_server/server.py
+ExecStart=/usr/bin/python3 $INSTALL_DIR/web_server/main.py
 Restart=on-failure
 RestartSec=5
-StandardOutput=syslog
-StandardError=syslog
+StandardOutput=journal
+StandardError=journal
 SyslogIdentifier=movie-recommender
+# 允许绑定特权端口(80)
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 
 [Install]
 WantedBy=multi-user.target

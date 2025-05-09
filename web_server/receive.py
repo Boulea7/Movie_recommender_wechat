@@ -29,8 +29,8 @@ class Msg(object):
 class TextMsg(Msg):
 	def __init__(self, xmlData):
 		Msg.__init__(self, xmlData)
-		content = xmlData.find('Content').text
-		self.Content = content.encode("utf-8") if content else ""
+		content_elem = xmlData.find('Content')
+		self.Content = content_elem.text if content_elem is not None else ""
 		self.MsgId = xmlData.find('MsgId').text
 
 class ImageMsg(Msg):
