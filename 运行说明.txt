@@ -1,0 +1,45 @@
+
+
+1. 确备环境配置
+
+#安装Python
+确保你的开发或生产服务器上已安装了Python 3.x版本，可以通过命令行输入 `python --version` 或 `python3 --version` 查看版本。
+
+#安装依赖
+打开终端或命令行，进入`main.py`所在目录，执行以下命令安装必要的Python库：
+
+```bash
+pip install web.py pymysql lxml hashlib hashlib time random pymysql requests
+```
+
+2. 数据库设置
+
+#数据库连接
+在`main.py`代码中，有数据库连接信息的部分需要根据实际情况修改为您的数据库配置，比如用户名、密码、数据库名等。例如：
+```python
+self.db = pymysql.connect(host='your_host', port=your_port, user='your_username', password='your_password', db='your_database', charset='utf8')```
+
+#创建表结构
+参照文档中提到的表结构，在MySQL中手动创建或通过SQL脚本创建电影信息表、用户信息表、搜索记录表、用户评分表等。
+
+3. 微信公众号配置
+
+#开发者平台
+- 登录微信公众号平台，注册个人订阅号。
+- 开启开发者模式，设置Token、EncodingAES密钥。
+- 配置置服务器地址为您的服务器公网IP和端口，确保是80。
+
+4. 启动后端服务
+
+#修改配置
+在`main.py`中，确保您的Token和EncodingAES密钥与微信公众号设置匹配，还有数据库连接配置正确。
+
+#运行服务
+在服务器终端或命令行，进入代码目录，执行以下命令运行服务：
+```bash
+python main.py 80```
+确保服务器有80端口开放，并且Python进程有权限运行。
+
+5. 测试功能
+关注公众号：使用微信扫描或搜索公众号二维码关注。
+交互测试命令：在公众号中发送“推荐”、“搜索电影名”、“评价 电影名 分数”等命令，测试功能。
