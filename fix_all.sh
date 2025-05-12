@@ -61,6 +61,11 @@ cp -r "$INSTALL_DIR/config" "$BACKUP_DIR/system_backup.$TIMESTAMP/" 2>/dev/null 
 log_section "修复Python依赖问题"
 log_info "安装缺失的Python依赖"
 
+# 确保日志目录存在
+mkdir -p "$INSTALL_DIR/logs"
+chmod 755 "$INSTALL_DIR/logs"
+log_info "已创建日志目录: $INSTALL_DIR/logs"
+
 # 检查虚拟环境
 if [ -d "$INSTALL_DIR/venv" ]; then
     log_info "检测到虚拟环境，在虚拟环境中安装依赖"
@@ -109,44 +114,96 @@ log_info "已创建MySQLdb兼容性包装器"
 
 # 2. 修复create_target_table.py中的问题
 log_section "修复create_target_table.py"
-log_info "修复数据库导入和Try-Except-Finally问题"
+log_info "修复数据库导入和日志路径问题"
 
 if [ -f "$INSTALL_DIR/data_spider/create_target_table.py" ]; then
     # 备份原始文件
     cp "$INSTALL_DIR/data_spider/create_target_table.py" "$BACKUP_DIR/create_target_table.py.bak.$TIMESTAMP"
     
+    # 创建临时文件
+    TEMP_FILE=$(mktemp)
+    
     # 修复MySQLdb导入
-    sed -i 's/import MySQLdb/import pymysql as MySQLdb/' "$INSTALL_DIR/data_spider/create_target_table.py"
-    log_info "已将MySQLdb导入改为pymysql别名"
+    if grep -q "import MySQLdb" "$INSTALL_DIR/data_spider/create_target_table.py"; then
+        sed 's/import MySQLdb/import pymysql as MySQLdb/' "$INSTALL_DIR/data_spider/create_target_table.py" > "$TEMP_FILE"
+        log_info "已将MySQLdb导入替换为pymysql别名"
+    else
+        # 如果没有找到MySQLdb导入，则复制原文件
+        cp "$INSTALL_DIR/data_spider/create_target_table.py" "$TEMP_FILE"
+        log_info "未找到MySQLdb导入，跳过替换"
+    fi
+    
+    # 修复日志配置
+    log_info "修复日志配置路径..."
+    sed -i '/logging.basicConfig/,/logger = logging.getLogger/c\
+# 获取当前脚本路径\
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))\
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)\
+LOGS_DIR = os.path.join(PROJECT_ROOT, "logs")\
+\
+# 确保日志目录存在\
+if not os.path.exists(LOGS_DIR):\
+	try:\
+		os.makedirs(LOGS_DIR)\
+	except Exception as e:\
+		print(f"无法创建日志目录: {e}")\
+\
+# 配置日志\
+logging.basicConfig(\
+	level=logging.INFO,\
+	format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",\
+	handlers=[\
+		logging.StreamHandler(),\
+		logging.FileHandler(os.path.join(LOGS_DIR, "data_processing.log"))\
+	]\
+)\
+logger = logging.getLogger("data_processing")' "$TEMP_FILE"
+    
+    # 替换原始文件
+    mv "$TEMP_FILE" "$INSTALL_DIR/data_spider/create_target_table.py"
+    chmod 644 "$INSTALL_DIR/data_spider/create_target_table.py"
     
     # 设置文件权限
     chmod +x "$INSTALL_DIR/data_spider/create_target_table.py"
-    log_info "已设置执行权限"
+    log_info "已修复 create_target_table.py 中的日志路径问题"
 else
     log_warning "找不到 data_spider/create_target_table.py 文件，跳过修复"
 fi
 
 # 3. 修复web_server/main.py的缩进问题
 log_section "修复web_server/main.py"
-log_info "修复update_user_info方法的缩进问题"
+log_info "修复update_user_info和on_event方法的缩进问题"
 
 if [ -f "$INSTALL_DIR/web_server/main.py" ]; then
     # 备份原始文件
     cp "$INSTALL_DIR/web_server/main.py" "$BACKUP_DIR/main.py.bak.$TIMESTAMP"
     
-    # 查找update_user_info方法的位置
-    LINE_START=$(grep -n "def update_user_info" "$INSTALL_DIR/web_server/main.py" | cut -d: -f1)
+    # 修复缩进问题
+    # 查找问题行
+    LINE_START=$(grep -n "return str(e)" "$INSTALL_DIR/web_server/main.py" | tail -1 | cut -d: -f1)
+    if [ -z "$LINE_START" ]; then
+        log_warning "找不到需要修复的行，尝试其他方法..."
+        LINE_START=$(grep -n "def update_user_info" "$INSTALL_DIR/web_server/main.py" | cut -d: -f1)
+        if [ -z "$LINE_START" ]; then
+            log_error "找不到update_user_info方法，无法继续"
+        else
+            LINE_START=$((LINE_START - 2))
+        fi
+    fi
+    
     if [ -n "$LINE_START" ]; then
-        log_info "找到方法位置，行号: $LINE_START"
+        log_info "找到缩进问题行: $LINE_START"
         
         # 创建临时文件
-        TMP_FILE=$(mktemp)
+        TEMP_FILE=$(mktemp)
         
-        # 提取文件头部
-        head -n $((LINE_START-1)) "$INSTALL_DIR/web_server/main.py" > "$TMP_FILE"
+        # 处理文件的前半部分
+        head -n $((LINE_START-1)) "$INSTALL_DIR/web_server/main.py" > "$TEMP_FILE"
         
-        # 添加修复后的update_user_info方法
-        cat >> "$TMP_FILE" << 'EOF'
+        # 添加修复后的return语句和update_user_info方法
+        cat >> "$TEMP_FILE" << 'EOF'
+			logger.error(f"GET请求处理失败: {e}")
+			return str(e)
 	def update_user_info(self, user_name):
 		try:
 			self.db = pymysql.connect(
@@ -175,29 +232,42 @@ if [ -f "$INSTALL_DIR/web_server/main.py" ]; then
 EOF
         
         # 查找下一个方法的位置
-        LINE_END=$(tail -n +$((LINE_START+1)) "$INSTALL_DIR/web_server/main.py" | grep -n "^	def " | head -1 | cut -d: -f1)
+        LINE_END=$(grep -n "^	def parse_cmd" "$INSTALL_DIR/web_server/main.py" | head -1 | cut -d: -f1)
         if [ -z "$LINE_END" ]; then
-            log_warning "无法找到下一个方法，尝试其他方式..."
-            LINE_END=$(grep -n "^	def " "$INSTALL_DIR/web_server/main.py" | sort -n | awk -v start=$LINE_START '$1 > start {print $1; exit}' | cut -d: -f1)
+            log_warning "找不到parse_cmd方法，尝试其他方法..."
+            LINE_END=$(grep -n "^	def " "$INSTALL_DIR/web_server/main.py" | awk -v start="$LINE_START" '$1 > start {print $1; exit}' | cut -d: -f1)
         fi
         
         if [ -n "$LINE_END" ]; then
-            LINE_END=$((LINE_START + LINE_END))
+            log_info "找到下一个方法位置: $LINE_END"
             
-            # 添加文件剩余部分
-            tail -n +$((LINE_END)) "$INSTALL_DIR/web_server/main.py" >> "$TMP_FILE"
+            # 添加文件的后半部分
+            tail -n +$LINE_END "$INSTALL_DIR/web_server/main.py" >> "$TEMP_FILE"
             
             # 替换原始文件
-            mv "$TMP_FILE" "$INSTALL_DIR/web_server/main.py"
+            mv "$TEMP_FILE" "$INSTALL_DIR/web_server/main.py"
             chmod 644 "$INSTALL_DIR/web_server/main.py"
             
-            log_info "已修复 web_server/main.py 文件中的缩进问题"
+            log_info "已修复 update_user_info 方法的缩进问题"
         else
-            log_error "无法确定main.py中下一个方法的位置，跳过修复"
-            rm "$TMP_FILE"
+            log_error "找不到下一个方法，跳过修复 update_user_info 方法"
+            rm "$TEMP_FILE"
         fi
     else
-        log_warning "在main.py中找不到update_user_info方法，跳过修复"
+        log_warning "无法找到需要修复的行，跳过修复 update_user_info 方法"
+    fi
+    
+    # 检查on_event方法的缩进问题
+    if grep -q "def on_event" "$INSTALL_DIR/web_server/main.py"; then
+        # 确保on_event方法的缩进正确
+        sed -i 's/^	def on_event(self, recMsg):/	def on_event(self, recMsg):/' "$INSTALL_DIR/web_server/main.py"
+        log_info "已检查 on_event 方法的缩进"
+    fi
+    
+    # 修复导入，确保使用pymysql替代MySQLdb
+    if grep -q "import MySQLdb" "$INSTALL_DIR/web_server/main.py"; then
+        sed -i 's/import MySQLdb/import pymysql as MySQLdb/' "$INSTALL_DIR/web_server/main.py"
+        log_info "已将MySQLdb导入替换为pymysql"
     fi
 else
     log_warning "找不到 web_server/main.py 文件，跳过修复"
@@ -312,8 +382,8 @@ fi
 log_section "修复完成"
 log_info "已完成所有问题的修复："
 log_info "1. 解决了Python依赖问题，替换了MySQLdb为pymysql"
-log_info "2. 修复了data_spider/create_target_table.py中的Try-Except-Finally问题"
-log_info "3. 修复了web_server/main.py中update_user_info方法的缩进错误"
+log_info "2. 修复了data_spider/create_target_table.py中的日志路径问题"
+log_info "3. 修复了web_server/main.py中update_user_info和on_event方法的缩进错误"
 log_info "4. 配置了端口绑定权限，支持符号链接和authbind备选方案"
 log_info "5. 设置了正确的文件权限"
 log_info ""

@@ -14,13 +14,25 @@ import os
 import sys
 import logging
 
+# 获取当前脚本路径
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+LOGS_DIR = os.path.join(PROJECT_ROOT, 'logs')
+
+# 确保日志目录存在
+if not os.path.exists(LOGS_DIR):
+	try:
+		os.makedirs(LOGS_DIR)
+	except Exception as e:
+		print(f"无法创建日志目录: {e}")
+
 # 配置日志
 logging.basicConfig(
 	level=logging.INFO,
 	format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
 	handlers=[
 		logging.StreamHandler(),
-		logging.FileHandler('../logs/data_processing.log')
+		logging.FileHandler(os.path.join(LOGS_DIR, 'data_processing.log'))
 	]
 )
 logger = logging.getLogger('data_processing')
@@ -266,11 +278,6 @@ class DataHandle(object):
 
 def main():
 	"""主函数"""
-	# 创建日志目录
-	log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logs')
-	if not os.path.exists(log_dir):
-		os.makedirs(log_dir)
-	
 	# 初始化数据处理对象
 	data = DataHandle()
 	

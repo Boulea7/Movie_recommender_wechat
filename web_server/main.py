@@ -79,7 +79,7 @@ class Main(object):
 		except Exception as e:
 			logger.error(f"GET请求处理失败: {e}")
 			return str(e)
-		def update_user_info(self, user_name):
+	def update_user_info(self, user_name):
 		try:
 			self.db = pymysql.connect(
 				host=DB_CONFIG.get('host', 'localhost'),

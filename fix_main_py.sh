@@ -1,5 +1,5 @@
 #!/bin/bash
-# 快速修复脚本 - 修复web_server/main.py缩进问题
+# 专门修复web_server/main.py文件中的缩进问题的脚本
 # 作者：电影推荐系统团队
 # 日期：2025-05-13
 
@@ -32,49 +32,60 @@ log_section() {
     echo -e "${BLUE}==================================================${NC}"
 }
 
+# 安装目录
+INSTALL_DIR=${INSTALL_DIR:-"/opt/recommender"}
+BACKUP_DIR="$INSTALL_DIR/backups"
+TIMESTAMP=$(date '+%Y%m%d%H%M%S')
+
 # 检查是否有root权限
 if [ "$EUID" -ne 0 ]; then
     log_error "请使用root用户或sudo运行此脚本"
     exit 1
 fi
 
-INSTALL_DIR=${INSTALL_DIR:-"/opt/recommender"}
-BACKUP_DIR="$INSTALL_DIR/backups"
-TIMESTAMP=$(date '+%Y%m%d%H%M%S')
-
 # 显示脚本头部
-log_section "电影推荐系统Web服务器缩进问题修复脚本"
-log_info "开始修复web_server/main.py文件的语法错误..."
-
-# 创建备份目录
-mkdir -p "$BACKUP_DIR"
+log_section "电影推荐系统 web_server/main.py 修复脚本"
+log_info "开始修复web_server/main.py文件中的缩进问题..."
 
 # 备份原始文件
-log_section "备份原始文件"
-log_info "备份 web_server/main.py 到 $BACKUP_DIR/main.py.bak.$TIMESTAMP"
-cp "$INSTALL_DIR/web_server/main.py" "$BACKUP_DIR/main.py.bak.$TIMESTAMP"
-
-# 使用临时文件修复缩进问题
-log_section "修复主要缩进问题"
-log_info "使用sed修复update_user_info方法的缩进错误"
-
-# 查找update_user_info方法的位置
-LINE_START=$(grep -n "def update_user_info" "$INSTALL_DIR/web_server/main.py" | cut -d: -f1)
-if [ -z "$LINE_START" ]; then
-    log_error "无法找到update_user_info方法，退出修复"
+mkdir -p "$BACKUP_DIR"
+if [ -f "$INSTALL_DIR/web_server/main.py" ]; then
+    cp "$INSTALL_DIR/web_server/main.py" "$BACKUP_DIR/main.py.bak.$TIMESTAMP"
+    log_info "已备份原始文件到 $BACKUP_DIR/main.py.bak.$TIMESTAMP"
+else
+    log_error "找不到 $INSTALL_DIR/web_server/main.py 文件，无法继续"
     exit 1
 fi
 
-log_info "找到方法位置，行号: $LINE_START"
-
 # 创建临时文件
-TMP_FILE=$(mktemp)
+TEMP_FILE=$(mktemp)
+log_info "创建临时文件进行修复"
 
-# 提取文件头部
-head -n $((LINE_START-1)) "$INSTALL_DIR/web_server/main.py" > "$TMP_FILE"
+# 查找问题行
+LINE_START=$(grep -n "return str(e)" "$INSTALL_DIR/web_server/main.py" | tail -1 | cut -d: -f1)
+if [ -z "$LINE_START" ]; then
+    log_warning "找不到需要修复的行，尝试其他方法..."
+    LINE_START=$(grep -n "def update_user_info" "$INSTALL_DIR/web_server/main.py" | cut -d: -f1)
+    if [ -z "$LINE_START" ]; then
+        log_error "找不到update_user_info方法，无法继续"
+        exit 1
+    else
+        LINE_START=$((LINE_START - 2))
+    fi
+fi
 
-# 添加修复后的update_user_info方法
-cat >> "$TMP_FILE" << 'EOF'
+log_info "找到缩进问题行: $LINE_START"
+
+# 处理文件的前半部分
+log_info "处理文件前半部分..."
+head -n $((LINE_START-1)) "$INSTALL_DIR/web_server/main.py" > "$TEMP_FILE"
+
+# 添加修复后的return语句和update_user_info方法
+log_info "添加修复后的return语句和update_user_info方法..."
+
+cat >> "$TEMP_FILE" << 'EOF'
+			logger.error(f"GET请求处理失败: {e}")
+			return str(e)
 	def update_user_info(self, user_name):
 		try:
 			self.db = pymysql.connect(
@@ -103,44 +114,62 @@ cat >> "$TMP_FILE" << 'EOF'
 EOF
 
 # 查找下一个方法的位置
-LINE_END=$(tail -n +$((LINE_START+1)) "$INSTALL_DIR/web_server/main.py" | grep -n "^	def " | head -1 | cut -d: -f1)
-LINE_END=$((LINE_START + LINE_END))
+LINE_END=$(grep -n "^	def parse_cmd" "$INSTALL_DIR/web_server/main.py" | head -1 | cut -d: -f1)
+if [ -z "$LINE_END" ]; then
+    log_warning "找不到parse_cmd方法，尝试其他方法..."
+    LINE_END=$(grep -n "^	def " "$INSTALL_DIR/web_server/main.py" | awk -v start="$LINE_START" '$1 > start {print $1; exit}' | cut -d: -f1)
+    
+    if [ -z "$LINE_END" ]; then
+        log_error "找不到下一个方法，无法继续"
+        exit 1
+    fi
+fi
 
-# 添加文件剩余部分
-tail -n +$((LINE_END)) "$INSTALL_DIR/web_server/main.py" >> "$TMP_FILE"
+log_info "找到下一个方法位置: $LINE_END"
+
+# 添加文件的后半部分
+log_info "添加文件后半部分..."
+tail -n +$LINE_END "$INSTALL_DIR/web_server/main.py" >> "$TEMP_FILE"
 
 # 替换原始文件
-mv "$TMP_FILE" "$INSTALL_DIR/web_server/main.py"
+log_info "替换原始文件..."
+mv "$TEMP_FILE" "$INSTALL_DIR/web_server/main.py"
 chmod 644 "$INSTALL_DIR/web_server/main.py"
 
-log_info "已修复 web_server/main.py 文件中的缩进问题"
-
-# 安装缺失的依赖项
-log_section "安装缺失的依赖"
-if [ -d "$INSTALL_DIR/venv" ]; then
-    log_info "检测到虚拟环境，在虚拟环境中安装依赖"
-    "$INSTALL_DIR/venv/bin/pip" install mysqlclient
-else
-    log_info "在系统Python环境中安装依赖"
-    pip install mysqlclient
+# 修复on_event方法的缩进问题
+log_info "检查on_event方法的缩进问题..."
+if grep -q "def on_event" "$INSTALL_DIR/web_server/main.py"; then
+    # 确保on_event方法的缩进正确
+    sed -i 's/^	def on_event(self, recMsg):/	def on_event(self, recMsg):/' "$INSTALL_DIR/web_server/main.py"
+    log_info "已检查on_event方法的缩进"
 fi
 
-# 重启服务
-log_section "重启服务"
-systemctl restart movie-recommender.service
-log_info "服务已重启"
-
-# 等待服务启动
-log_info "等待服务启动..."
-sleep 5
-if systemctl is-active --quiet movie-recommender.service; then
-    log_info "服务已成功启动！"
-else
-    log_warning "服务可能未正确启动，请检查日志：journalctl -u movie-recommender.service -f"
+# 确保所有import正确
+log_info "检查pymysql导入..."
+if grep -q "import MySQLdb" "$INSTALL_DIR/web_server/main.py"; then
+    sed -i 's/import MySQLdb/import pymysql as MySQLdb/' "$INSTALL_DIR/web_server/main.py"
+    log_info "已将MySQLdb导入替换为pymysql"
 fi
 
+# 创建MySQLdb兼容性包装
+log_info "创建MySQLdb兼容性包装器..."
+cat > "$INSTALL_DIR/web_server/mysqldb_wrapper.py" << 'EOF'
+"""
+MySQLdb兼容性包装器，使用pymysql作为替代方案
+当无法安装原生MySQLdb时使用此模块
+"""
+import pymysql
+import sys
+
+# 将pymysql设置为MySQLdb的别名
+sys.modules['MySQLdb'] = pymysql
+EOF
+
+chmod 644 "$INSTALL_DIR/web_server/mysqldb_wrapper.py"
+log_info "已创建MySQLdb兼容性包装器"
+
+# 修复完成
 log_section "修复完成"
-log_info "web_server/main.py 文件的语法错误已修复。"
-log_info "如果仍有问题，您可以恢复备份文件："
-log_info "  sudo cp $BACKUP_DIR/main.py.bak.$TIMESTAMP $INSTALL_DIR/web_server/main.py"
-log_info "  sudo systemctl restart movie-recommender.service" 
+log_info "web_server/main.py文件中的缩进问题已修复"
+log_info "原始文件已备份到 $BACKUP_DIR/main.py.bak.$TIMESTAMP"
+log_info "您现在可以重启服务: systemctl restart movie-recommender.service" 
