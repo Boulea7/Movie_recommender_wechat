@@ -29,7 +29,7 @@ sudo apt update
 sudo apt install -y git
 
 # 2. 克隆项目代码
-git clone https://github.com/your_username/recommender.git /tmp/recommender
+git clone https://github.com/Boulea7/Movie_recommender_wechat /tmp/recommender
 
 # 3. 执行部署脚本
 cd /tmp/recommender
@@ -466,7 +466,32 @@ sudo bash scripts/fix_config_parser.sh
 sudo bash scripts/unified_deploy.sh
 ```
 
-#### 7. 内存不足问题
+#### 7. 端口绑定权限问题
+
+**问题**：当配置80端口时出现`Failed to set capabilities on file... (Invalid argument)`错误。
+**解决方法**：
+```bash
+# 方法1：找到Python解释器真实路径并设置权限
+PYTHON_PATH=$(readlink -f /opt/recommender/venv/bin/python3)
+sudo setcap 'cap_net_bind_service=+ep' $PYTHON_PATH
+
+# 方法2：使用authbind
+sudo apt-get install -y authbind
+sudo touch /etc/authbind/byport/80
+sudo chmod 500 /etc/authbind/byport/80
+sudo chown root /etc/authbind/byport/80
+
+# 修改服务文件
+sudo nano /etc/systemd/system/movie-recommender.service
+# 将ExecStart行修改为:
+# ExecStart=/usr/bin/authbind --deep /opt/recommender/venv/bin/python3 /opt/recommender/web_server/main.py
+
+# 重载并重启服务
+sudo systemctl daemon-reload
+sudo systemctl restart movie-recommender.service
+```
+
+#### 8. 内存不足问题
 
 **问题**：系统或MySQL内存使用过高，导致服务不稳定。
 **解决方法**：
@@ -700,6 +725,7 @@ sudo ufw enable
 - 添加了健康检查系统
 - 改进了错误诊断和修复工具
 - 增加了微信公众号调试工具
+- 修复了低端口绑定权限问题，支持符号链接和authbind备选方案
 
 ### 版本2.0.1 (2025-05-10)
 - 修复了外部管理的Python环境问题

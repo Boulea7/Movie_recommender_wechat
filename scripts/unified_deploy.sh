@@ -90,6 +90,7 @@ BACKUP_DIR="/opt/recommender_backups"
 TIMESTAMP=$(date '+%Y%m%d%H%M%S')
 PORT=${PORT:-80}
 USE_NGINX=${USE_NGINX:-false}
+USE_AUTHBIND=${USE_AUTHBIND:-false}
 CURRENT_DIR=$(pwd)
 
 # 配置参数
@@ -498,6 +499,15 @@ if [ "$PORT" -lt 1024 ]; then
             PYTHON_BIN="$VENV_DIR/bin/python"
         fi
         
+        # 检查是否是符号链接，如果是，找到真实的路径
+        if [ -L "$PYTHON_BIN" ]; then
+            log_info "检测到Python解释器是符号链接，找到真实路径..."
+            # 获取真实路径
+            REAL_PYTHON_BIN=$(readlink -f "$PYTHON_BIN")
+            log_info "Python解释器实际路径: $REAL_PYTHON_BIN"
+            PYTHON_BIN="$REAL_PYTHON_BIN"
+        fi
+        
         # 设置权限
         if [ -f "$PYTHON_BIN" ]; then
             setcap 'cap_net_bind_service=+ep' "$PYTHON_BIN"
@@ -506,10 +516,27 @@ if [ "$PORT" -lt 1024 ]; then
             if [ $? -eq 0 ]; then
                 log_info "成功设置低端口绑定权限"
             else
-                log_warning "设置绑定权限失败，将配置Nginx反向代理"
-                USE_NGINX=true
-                # 更新配置文件使用8080端口
-                sed -i "s/^port = .*/port = 8080/" "$CONFIG_FILE"
+                log_warning "使用setcap设置绑定权限失败，尝试使用authbind备选方案..."
+                
+                # 安装authbind
+                apt-get install -y authbind
+                
+                if [ $? -eq 0 ]; then
+                    # 配置authbind允许使用80端口
+                    touch /etc/authbind/byport/80
+                    chmod 500 /etc/authbind/byport/80
+                    chown root /etc/authbind/byport/80
+                    
+                    # 保存authbind使用标记供后续使用
+                    USE_AUTHBIND=true
+                    
+                    log_info "已配置authbind作为低端口绑定的备选方案"
+                else
+                    log_warning "安装authbind失败，将配置Nginx反向代理"
+                    USE_NGINX=true
+                    # 更新配置文件使用8080端口
+                    sed -i "s/^port = .*/port = 8080/" "$CONFIG_FILE"
+                fi
             fi
         else
             log_warning "无法找到Python二进制文件，将配置Nginx反向代理"
@@ -535,8 +562,33 @@ if [ ! -f "$PYTHON_BIN" ]; then
     PYTHON_BIN="$VENV_DIR/bin/python3"
 fi
 
-# 创建服务文件
-cat > "$SERVICE_FILE" << EOF
+# 创建服务文件，如果需要则使用authbind
+if [ "$USE_AUTHBIND" = true ]; then
+    log_info "创建支持authbind的服务文件..."
+    
+    cat > "$SERVICE_FILE" << EOF
+[Unit]
+Description=电影推荐系统服务
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$INSTALL_DIR
+ExecStart=/usr/bin/authbind --deep $PYTHON_BIN $INSTALL_DIR/web_server/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=movie-recommender
+
+[Install]
+WantedBy=multi-user.target
+EOF
+else
+    # 创建常规服务文件
+    cat > "$SERVICE_FILE" << EOF
 [Unit]
 Description=电影推荐系统服务
 After=network.target mysql.service
@@ -556,10 +608,17 @@ SyslogIdentifier=movie-recommender
 [Install]
 WantedBy=multi-user.target
 EOF
+fi
 
 # 重载systemd
 log_info "重载systemd配置..."
 systemctl daemon-reload
+
+# 停止现有服务（如果已运行）
+if systemctl is-active --quiet movie-recommender.service; then
+    log_info "停止现有电影推荐系统服务..."
+    systemctl stop movie-recommender.service
+fi
 
 # 启用并启动服务
 log_info "启用电影推荐系统服务..."
