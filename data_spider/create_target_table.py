@@ -116,13 +116,13 @@ class DataHandle(object):
 				logger.info(f"成功创建表 {tablename}")
 			else:
 				logger.info(f"表 {tablename} 已存在")
-				
-		conn.commit()
+			
+			conn.commit()
 		except Exception as e:
 			logger.error(f"创建表失败: {str(e)}")
 			conn.rollback()
 		finally:
-		cur.close()
+			cur.close()
 	
 	def data_insert(self, conn, table, oldtable):
 		"""
