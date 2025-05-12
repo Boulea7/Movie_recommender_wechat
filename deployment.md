@@ -491,7 +491,42 @@ sudo systemctl daemon-reload
 sudo systemctl restart movie-recommender.service
 ```
 
-#### 8. 内存不足问题
+#### 8. Python脚本缩进问题
+
+**问题**：Python脚本（如`create_target_table.py`或`main.py`）出现缩进错误，如`TabError: inconsistent use of tabs and spaces in indentation`。
+**解决方法**：
+```bash
+# 下载修复脚本
+wget -O /tmp/fix_indentation.sh https://raw.githubusercontent.com/your_username/recommender/master/scripts/fix_indentation.sh
+
+# 或手动创建修复脚本
+cat > /tmp/fix_indentation.sh << 'EOF'
+#!/bin/bash
+INSTALL_DIR=${INSTALL_DIR:-"/opt/recommender"}
+BACKUP_DIR="$INSTALL_DIR/backups"
+TIMESTAMP=$(date '+%Y%m%d%H%M%S')
+
+# 备份原始文件
+mkdir -p "$BACKUP_DIR"
+cp "$INSTALL_DIR/web_server/main.py" "$BACKUP_DIR/main.py.bak.$TIMESTAMP"
+cp "$INSTALL_DIR/data_spider/create_target_table.py" "$BACKUP_DIR/create_target_table.py.bak.$TIMESTAMP"
+
+# 修复缩进 - 将所有制表符转换为空格
+sed -i 's/\t/    /g' "$INSTALL_DIR/web_server/main.py"
+sed -i 's/\t/    /g' "$INSTALL_DIR/data_spider/create_target_table.py"
+
+# 重启服务
+systemctl restart movie-recommender.service
+EOF
+
+# 执行修复脚本
+chmod +x /tmp/fix_indentation.sh
+sudo bash /tmp/fix_indentation.sh
+```
+
+如果自动修复脚本不能解决问题，您也可以从GitHub下载修复好的脚本版本替换原有文件。
+
+#### 9. 内存不足问题
 
 **问题**：系统或MySQL内存使用过高，导致服务不稳定。
 **解决方法**：
@@ -726,6 +761,7 @@ sudo ufw enable
 - 改进了错误诊断和修复工具
 - 增加了微信公众号调试工具
 - 修复了低端口绑定权限问题，支持符号链接和authbind备选方案
+- 修复了Python脚本缩进问题，解决了TabError错误
 
 ### 版本2.0.1 (2025-05-10)
 - 修复了外部管理的Python环境问题
