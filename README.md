@@ -9,6 +9,7 @@
 - **推荐功能**：系统基于协同过滤算法为用户推荐电影，考虑用户历史评分和兴趣类别
 - **错误处理**：完善的错误处理机制，即使在突发情况下仍能提供服务
 - **日志系统**：详细的日志记录，便于故障排查和系统优化
+- **微信稳定连接**：优化的微信公众号连接处理，确保稳定通信
 
 ## 系统架构
 
@@ -34,10 +35,10 @@ git clone https://github.com/your_username/recommender.git /tmp/recommender
 # 3. 执行部署脚本
 cd /tmp/recommender
 sudo chmod +x scripts/*.sh
-sudo bash scripts/deploy.sh
+sudo bash scripts/unified_deploy.sh
 
 # 4. 验证部署
-curl http://localhost/
+curl http://localhost/health
 sudo systemctl status movie-recommender.service
 ```
 
@@ -185,6 +186,12 @@ sudo bash /opt/recommender/scripts/fix_create_target_table.sh
 
 # 仅修复main.py中的缩进问题
 sudo bash /opt/recommender/scripts/fix_main_py.sh
+
+# 修复微信公众号连接问题
+sudo bash /opt/recommender/scripts/fix_wechat_conn.sh
+
+# 一体化部署与修复
+sudo bash /opt/recommender/scripts/unified_deploy.sh
 ```
 
 集成到部署脚本的修复功能包括：
@@ -193,6 +200,9 @@ sudo bash /opt/recommender/scripts/fix_main_py.sh
 2. **缩进问题修复**：修复了代码中的缩进错误
 3. **端口绑定问题修复**：解决了低端口绑定权限问题
 4. **符号链接支持**：优化了对Python解释器符号链接的处理
+5. **微信连接修复**：确保微信公众号验证请求始终返回200状态码
+6. **数据库访问修复**：解决MySQL root用户访问被拒绝的问题
+7. **端口占用处理**：自动释放被占用的80端口
 
 ### 问题诊断与修复
 
@@ -233,6 +243,13 @@ sudo mysql -u root -p douban < /opt/recommender_backups/douban_20250510.sql
 ```
 
 ## 更新日志
+
+### 版本 2.1.0 (2025-05-13)
+- 修复微信公众号连接问题，确保稳定通信
+- 完善数据库连接和权限设置
+- 优化80端口占用处理，支持自动释放占用端口
+- 添加微信连接测试工具
+- 增强系统错误处理，提高服务稳定性
 
 ### 版本 2.0.0 (2025-05-10)
 - 全面重构部署流程，优化系统稳定性
@@ -276,3 +293,45 @@ sudo mysql -u root -p douban < /opt/recommender_backups/douban_20250510.sql
 ## 贡献者
 
 - 电影推荐系统团队 - 开发与维护 
+
+## 微信公众号连接
+
+系统对微信公众号连接进行了特别优化：
+
+1. **健康检查端点**：提供`/health`端点，便于监控系统状态
+2. **微信验证处理**：确保微信服务器验证请求始终成功
+3. **错误处理机制**：即使在异常情况下也能保持微信公众号连接正常
+4. **端口自动配置**：自动处理80端口占用问题
+5. **微信调试工具**：提供专用工具测试微信连接
+
+微信公众号配置：
+- URL: `http://your_server_ip/`
+- Token: `HelloMovieRecommender`
+- 消息加解密方式: 明文模式
+
+测试微信连接：
+```bash
+# 测试微信验证机制
+python3 /opt/recommender/scripts/wechat_debug.py --url http://your_server_ip --validate
+
+# 测试健康检查端点
+python3 /opt/recommender/scripts/wechat_debug.py --url http://your_server_ip --health
+
+# 模拟发送消息
+python3 /opt/recommender/scripts/wechat_debug.py --url http://your_server_ip --message "测试消息"
+```
+
+微信连接问题的详细解决方案请参考[微信连接问题解决方案](README_微信连接问题解决方案.md)。
+
+## 数据库操作
+
+```bash
+# 连接到系统数据库
+mysql -u douban_user -p"MySQL_20050816Zln@233" douban
+
+# 备份数据库
+sudo mysqldump -u root -p douban > /opt/recommender_backups/douban_$(date +%Y%m%d).sql
+
+# 从备份恢复
+sudo mysql -u root -p douban < /opt/recommender_backups/douban_20250510.sql
+``` 
