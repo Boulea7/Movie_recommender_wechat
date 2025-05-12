@@ -8,7 +8,7 @@
 日期：2023-05-20
 """
 
-import MySQLdb
+import pymysql as MySQLdb
 import datetime
 import os
 import sys

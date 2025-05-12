@@ -79,7 +79,7 @@ class Main(object):
 		except Exception as e:
 			logger.error(f"GET请求处理失败: {e}")
 			return str(e)
-	def update_user_info(self, user_name):
+		def update_user_info(self, user_name):
 		try:
 			self.db = pymysql.connect(
 				host=DB_CONFIG.get('host', 'localhost'),
@@ -89,18 +89,18 @@ class Main(object):
 				db=DB_CONFIG.get('db', 'douban'),
 				charset=DB_CONFIG.get('charset', 'utf8mb4')
 			)
-		self.cursor = self.db.cursor()
-		cmd = 'select * from user_info where wx_id = "{}";'.format(user_name)
-		self.cursor.execute(cmd)
-		results = self.cursor.fetchall()
-		if len(results) == 0:
-			cmd = 'insert into user_info(wx_id, start_time) values("{}", "{}");'.format(user_name, int(time.time()))
-			try:
-				self.cursor.execute(cmd)
-				self.db.commit()
+			self.cursor = self.db.cursor()
+			cmd = 'select * from user_info where wx_id = "{}";'.format(user_name)
+			self.cursor.execute(cmd)
+			results = self.cursor.fetchall()
+			if len(results) == 0:
+				cmd = 'insert into user_info(wx_id, start_time) values("{}", "{}");'.format(user_name, int(time.time()))
+				try:
+					self.cursor.execute(cmd)
+					self.db.commit()
 					logger.info(f"添加新用户: {user_name}")
 				except Exception as e:
-				self.db.rollback()
+					self.db.rollback()
 					logger.error(f"添加用户失败: {e}")
 		except Exception as e:
 			logger.error(f"更新用户信息失败: {e}")
@@ -377,20 +377,20 @@ class Main(object):
 					db=DB_CONFIG.get('db', 'douban'),
 					charset=DB_CONFIG.get('charset', 'utf8mb4')
 				)
-			cursor = db.cursor()
-			cmd = 'select * from user_info where wx_id = "{}";'.format(recMsg.FromUserName)
-			cursor.execute(cmd)
-			results = cursor.fetchall()
-			if len(results) == 0:
-				cmd = 'insert into user_info(wx_id, start_time) values("{}", "{}");'.format(recMsg.FromUserName, int(time.time()))
-				try:
-					cursor.execute(cmd)
-					db.commit()
+				cursor = db.cursor()
+				cmd = 'select * from user_info where wx_id = "{}";'.format(recMsg.FromUserName)
+				cursor.execute(cmd)
+				results = cursor.fetchall()
+				if len(results) == 0:
+					cmd = 'insert into user_info(wx_id, start_time) values("{}", "{}");'.format(recMsg.FromUserName, int(time.time()))
+					try:
+						cursor.execute(cmd)
+						db.commit()
 						logger.info(f"用户订阅：添加新用户 {recMsg.FromUserName}")
 					except Exception as e:
-					db.rollback()
+						db.rollback()
 						logger.error(f"用户订阅：添加用户失败: {e}")
-			db.close()
+				db.close()
 			except Exception as e:
 				logger.error(f"用户订阅事件处理失败: {e}", exc_info=True)
 				
@@ -439,7 +439,7 @@ if __name__ == '__main__':
 	try:
 		# 设置监听所有接口(0.0.0.0)而不是默认的localhost
 		web.config.debug = False  # 生产环境关闭调试
-	app = web.application(urls, globals())
+		app = web.application(urls, globals())
 		port = int(SERVICE_CONFIG.get('port', 80))
 		logger.info(f"启动Web服务器，监听地址：0.0.0.0:{port}")
 		web.httpserver.runsimple(app.wsgifunc(), ('0.0.0.0', port))

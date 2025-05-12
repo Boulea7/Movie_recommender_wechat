@@ -526,6 +526,28 @@ sudo bash /tmp/fix_indentation.sh
 
 如果自动修复脚本不能解决问题，您也可以从GitHub下载修复好的脚本版本替换原有文件。
 
+**特定问题**：在`data_spider/create_target_table.py`文件中，可能会遇到"expected 'except' or 'finally' block"错误，这表明try语句块缺少对应的except或finally子句。
+**解决方法**：
+```bash
+# 使用我们提供的脚本修复try-except-finally结构问题
+sudo bash /opt/recommender/scripts/fix_create_target_table.sh
+
+# 或手动修复代码
+sudo nano /opt/recommender/data_spider/create_target_table.py
+# 确保每个try块都有对应的except或finally块
+```
+
+**web_server/main.py缩进问题**：在`web_server/main.py`中可能存在更复杂的缩进问题，特别是在`update_user_info`方法中。
+**解决方法**：
+```bash
+# 使用我们提供的脚本修复
+sudo bash /opt/recommender/scripts/fix_main_py.sh
+
+# 或手动修复缩进问题
+sudo nano /opt/recommender/web_server/main.py
+# 确保方法中的try-except块正确缩进
+```
+
 #### 9. 内存不足问题
 
 **问题**：系统或MySQL内存使用过高，导致服务不稳定。
@@ -753,6 +775,13 @@ sudo ufw enable
 ```
 
 ## 变更日志
+
+### 版本2.1.1 (2025-05-20)
+- 修复了data_spider/create_target_table.py中try块缺少except/finally子句的问题
+- 修复了web_server/main.py中update_user_info方法的缩进错误
+- 优化了Python依赖管理，添加了对MySQLdb模块的替代方案
+- 改进了低端口绑定权限检测逻辑，支持更多复杂环境
+- 更新了脚本缩进问题修复工具
 
 ### 版本2.1.0 (2025-05-15)
 - 添加了统一部署脚本`unified_deploy.sh`
