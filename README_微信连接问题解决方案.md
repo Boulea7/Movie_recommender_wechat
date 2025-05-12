@@ -7,6 +7,7 @@
 1. 微信公众号无法正常连接到服务器，HTTP返回非200状态码
 2. 数据处理脚本执行失败，显示MySQL访问被拒绝（Access denied for user 'root'@'localhost'）
 3. 端口80被占用，导致服务无法正常启动
+4. 健康检查端点(Health类)缩进错误，导致服务无法启动
 
 ## 问题原因分析
 
@@ -35,6 +36,13 @@ MySQL 8.0及更高版本默认使用`caching_sha2_password`认证插件，这可
 - 需要root权限或特殊权限才能绑定
 - 可能被其他服务（如Apache/Nginx）占用
 - 在部署过程中检测到端口已被占用
+
+### 4. 健康检查端点缩进问题
+
+Python对缩进非常敏感，在添加健康检查端点时：
+- 添加的`Health`类缩进不正确
+- 导致出现`IndentationError: expected an indented block after class definition`错误
+- 服务无法启动，自动重启但始终失败
 
 ## 解决方案
 
@@ -84,6 +92,18 @@ MySQL 8.0及更高版本默认使用`caching_sha2_password`认证插件，这可
    - 内部使用高端口（如8080），外部使用80端口
    - 确保微信请求正确转发
 
+### 4. 健康检查端点缩进修复
+
+1. **修复Python缩进错误**：
+   - 修正`Health`类和方法的缩进
+   - 确保`def GET(self)`方法正确缩进
+   - 修复`web.header`和`return`语句的缩进
+
+2. **彻底重建健康检查**：
+   - 如果简单修复不成功，完全重建Health类
+   - 重新配置URL路由，确保正确匹配
+   - 添加独立的Health类到文件末尾
+
 ## 使用方法
 
 ### 部署系统
@@ -100,6 +120,14 @@ sudo bash scripts/unified_deploy.sh
 
 ```bash
 sudo bash fix_wechat_conn.sh
+```
+
+### 修复健康检查端点缩进问题
+
+如果遇到健康检查端点缩进错误：
+
+```bash
+sudo bash fix_health_indentation.sh
 ```
 
 ### 测试微信连接
@@ -145,6 +173,12 @@ python3 scripts/wechat_debug.py --url http://your_server_ip --message "测试消
 5. 检查防火墙设置：
    ```bash
    ufw status
+   ```
+
+6. 检查Python语法错误：
+   ```bash
+   # 检查语法错误但不执行代码
+   python3 -m py_compile /opt/recommender/web_server/main.py
    ```
 
 如有进一步问题，请联系技术支持。 

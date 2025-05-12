@@ -190,6 +190,9 @@ sudo bash /opt/recommender/scripts/fix_main_py.sh
 # 修复微信公众号连接问题
 sudo bash /opt/recommender/scripts/fix_wechat_conn.sh
 
+# 修复健康检查端点缩进问题
+sudo bash /opt/recommender/scripts/fix_health_indentation.sh
+
 # 一体化部署与修复
 sudo bash /opt/recommender/scripts/unified_deploy.sh
 ```
@@ -203,6 +206,7 @@ sudo bash /opt/recommender/scripts/unified_deploy.sh
 5. **微信连接修复**：确保微信公众号验证请求始终返回200状态码
 6. **数据库访问修复**：解决MySQL root用户访问被拒绝的问题
 7. **端口占用处理**：自动释放被占用的80端口
+8. **健康检查端点修复**：解决Health类缩进问题，确保服务可以正常启动
 
 ### 问题诊断与修复
 
