@@ -68,7 +68,7 @@ class DataHandle(object):
 		"""
 		try:
 			if conn and conn != -1:
-				conn.close()
+		 		conn.close()
 				logger.info("数据库连接已关闭")
 		except Exception as e:
 			logger.error(f"关闭数据库连接失败: {str(e)}")
@@ -117,12 +117,12 @@ class DataHandle(object):
 			else:
 				logger.info(f"表 {tablename} 已存在")
 				
-			conn.commit()
+		conn.commit()
 		except Exception as e:
 			logger.error(f"创建表失败: {str(e)}")
 			conn.rollback()
 		finally:
-			cur.close()
+		cur.close()
 	
 	def data_insert(self, conn, table, oldtable):
 		"""
@@ -142,8 +142,8 @@ class DataHandle(object):
 			# 设置字符集
 			cur.execute("SET NAMES utf8mb4")
 			
-			i = 0
-			limit = 1
+		i = 0
+		limit = 1
 			links_seen = set()  # 用于去重
 			processed_count = 0
 			
@@ -152,54 +152,54 @@ class DataHandle(object):
 				# 从源表查询数据
 				query = f"SELECT * FROM {oldtable} LIMIT {i}, {limit};"
 				cur.execute(query)
-				row = cur.fetchall()
+			row = cur.fetchall()
 				i += 1
 				
 				# 无数据时结束循环
 				if not row:
-					break
+				break
 				
 				# 获取电影链接并去重
 				link = ''.join(row[0][3]).strip() if row[0][3] else ''
-				
+			
 				if not link or link in links_seen:
-					continue
+				continue
 					
 				links_seen.add(link)
-				
+			
 				# 处理标题
 				title = ''.join(row[0][0]).strip() if row[0][0] else ''
 				
 				# 处理评分
 				s = ''.join(row[0][1]).strip() if row[0][1] else ''
 				score = float(s) if self.has_num(s) else None
-				
+			
 				# 处理评分人数
 				n = ''.join(row[0][2]).strip() if row[0][2] else ''
 				if n:
 					# 只保留数字
 					num_str = ''.join(c for c in n if c.isdigit())
 					num = int(num_str) if num_str else None
-				else:
-					num = None
-					score = None
-				
+			else:
+	 			num = None
+				score = None
+
 				# 处理时间和地区信息
-				other_release = None
+			other_release = None
 				temp_time = ''.join(row[0][4]).strip() if row[0][4] else ''
 				
 				# 如果数据中含有数字，提取日期和地区
 				if self.has_num(temp_time):
 					time_str = ''.join(c for c in temp_time if c.isdigit() or c == '-')
 					address = ''.join(c for c in temp_time if not (c.isdigit() or c in '()-'))
-				else:
+			else:
 					time_str = None
-					if '()' in temp_time:
+				if '()' in temp_time:
 						address = ''.join(c for c in temp_time if c not in '()')
-					else:
-						address = None
-						other_release = temp_time
-				
+				else:
+					address = None
+					other_release = temp_time
+			
 				# 处理演员信息
 				actor_str = row[0][5] if len(row[0]) > 5 else ''
 				if actor_str:
@@ -210,12 +210,12 @@ class DataHandle(object):
 					# 提取数字信息到other_release
 					for element in list(actors):  # 使用列表副本进行迭代
 						if self.has_num(element):
-							if other_release:
+					if other_release:
 								other_release = other_release + ';' + element
-							else:
-								other_release = element
-							actors.remove(element)
-					
+					else:
+						other_release = element
+					actors.remove(element)
+			
 					actor = ','.join(actors)
 				else:
 					actor = ''
@@ -248,10 +248,10 @@ class DataHandle(object):
 			logger.error(f"数据处理过程中发生错误: {str(e)}")
 		finally:
 			if cur:
-				cur.close()
+		cur.close()
 				logger.info("数据库游标已关闭")
 			self.close_db(conn)
-	
+
 	def has_num(self, s):
 		"""
 		检查字符串是否包含数字

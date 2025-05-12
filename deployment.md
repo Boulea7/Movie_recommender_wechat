@@ -1,490 +1,196 @@
 # 电影推荐系统部署指南
 
-## 快速重启指南
+> 作者：电影推荐系统团队  
+> 版本：2.1.0  
+> 更新日期：2025-05-15
 
-如果您已经完成部署，但服务无法正常访问，请按以下步骤重启系统：
+本文档提供了在纯净的Ubuntu系统上部署电影推荐系统的完整指南，包括自动化和手动部署方法、常见问题排查和系统维护。
 
-```bash
-# 停止服务
-sudo systemctl stop movie-recommender.service
+## 目录
 
-# 编辑服务配置文件
-sudo nano /etc/systemd/system/movie-recommender.service
+- [快速部署](#快速部署)
+- [系统要求](#系统要求)
+- [一键自动部署](#一键自动部署)
+- [详细部署步骤](#详细部署步骤)
+- [端口配置](#端口配置)
+- [微信公众号配置](#微信公众号配置)
+- [常见问题排查](#常见问题排查)
+- [系统维护](#系统维护)
+- [高级配置](#高级配置)
+- [变更日志](#变更日志)
 
-# 修改ExecStart行如下
-# ExecStart=/usr/bin/python3 /opt/recommender/web_server/main.py
+## 快速部署
 
-# 保存并退出(Ctrl+O, Enter, Ctrl+X)
-
-# 重载服务配置
-sudo systemctl daemon-reload
-
-# 启动服务
-sudo systemctl start movie-recommender.service
-
-# 检查服务状态
-sudo systemctl status movie-recommender.service
-
-# 查看详细日志
-sudo journalctl -u movie-recommender.service -f
-```
-
-如果仍然无法访问，检查防火墙设置：
+以下是在纯净系统上快速部署电影推荐系统的步骤：
 
 ```bash
-# 开放80端口
-sudo ufw allow 80/tcp
-
-# 重启防火墙
-sudo ufw reload
-```
-
-## 电影推荐系统自动化部署指南
-
-> 作者：电影推荐系统团队
-> 日期：2023-05-20
-
-本文档将指导您如何在Ubuntu服务器上部署电影推荐系统。适合Linux新手按步骤操作。
-
-## 基础知识
-
-### Ubuntu基本命令
-
-```bash
-# 查看当前目录
-pwd
-
-# 列出文件和目录
-ls -la
-
-# 切换目录
-cd /path/to/directory
-
-# 创建目录
-mkdir directory_name
-
-# 复制文件或目录
-cp source destination
-
-# 移动或重命名文件
-mv source destination
-
-# 删除文件
-rm filename
-
-# 删除目录及其内容
-rm -rf directory_name
-
-# 查看文件内容
-cat filename
-
-# 编辑文件
-nano filename  # 或 vim filename
-
-# 查看磁盘空间
-df -h
-
-# 查看系统进程
-ps aux | grep process_name
-
-# 查看网络连接
-netstat -tuln
-
-# 安装软件包
+# 1. 更新系统并安装Git
 sudo apt update
-sudo apt install package_name
-```
+sudo apt install -y git
 
-### Git基本命令
+# 2. 克隆项目代码
+git clone https://github.com/your_username/recommender.git /tmp/recommender
 
-```bash
-# 克隆远程仓库
-git clone https://github.com/username/repository.git
-
-# 获取最新代码
-git pull
-
-# 查看状态
-git status
-
-# 添加文件到暂存区
-git add filename
-
-# 提交更改
-git commit -m "提交说明"
-
-# 推送到远程仓库
-git push
-
-# 切换分支
-git checkout branch_name
-
-# 创建并切换到新分支
-git checkout -b new_branch_name
-```
-
-## 环境要求
-
-- Ubuntu 服务器（推荐Ubuntu 20.04或以上）
-- Python 3.7+
-- MySQL 5.7+
-- 开放80端口（微信公众号要求）
-- root或sudo权限
-- 至少1GB RAM和10GB可用磁盘空间
-
-## 电影推荐系统自动化部署指南
-
-> 作者：电影推荐系统团队
-> 日期：2023-05-20
-
-### 部署前准备
-
-1. 一台安装了Ubuntu系统的服务器（推荐Ubuntu 18.04或更高版本）
-2. 具有root或sudo权限的用户帐号
-3. 已安装MySQL服务器（推荐MySQL 5.7或更高版本）
-
-### 自动化部署步骤
-
-#### 1. 获取项目代码
-
-```bash
-# 创建项目目录
-mkdir -p /tmp/recommender
-
-# 下载项目代码（根据实际情况替换为你的Git地址）
-git clone https://github.com/Boulea7/Movie_recommender_wechat /tmp/recommender
-# 或者使用scp从本地上传
-# scp -r /path/to/local/recommender/* user@server:/tmp/recommender/
-```
-
-#### 2. 运行自动部署脚本
-
-```bash
-# 进入项目目录
+# 3. 执行部署脚本
 cd /tmp/recommender
+sudo chmod +x scripts/*.sh
+sudo bash scripts/unified_deploy.sh
 
-# 添加脚本执行权限
-chmod +x scripts/*.sh
-
-# 运行部署脚本（需要root权限）
-sudo INSTALL_DIR=/opt/recommender bash scripts/deploy.sh
-```
-
-部署脚本会自动完成以下操作：
-- 安装必要的系统依赖
-- 设置应用程序目录结构
-- 备份现有安装（如果存在）
-- 安装Python依赖包
-- 初始化数据库和导入样本数据
-- 配置系统服务并启动应用
-
-#### 3. 验证部署结果
-
-部署完成后，可以通过以下命令检查服务状态：
-
-```bash
-# 查看服务状态
+# 4. 验证部署
+curl http://localhost/
 sudo systemctl status movie-recommender.service
-
-# 查看应用日志
-sudo journalctl -u movie-recommender.service -f
 ```
 
-应用默认会监听80端口，可以通过访问 `http://服务器IP` 来验证应用是否正常运行。
+如果部署过程中出现问题，请参考[常见问题排查](#常见问题排查)部分。
 
-### 手动部署步骤（如自动部署失败）
+## 系统要求
 
-如果自动部署脚本运行失败，可以按照以下步骤手动部署：
+- **操作系统**：Ubuntu 20.04 LTS或更高版本
+- **硬件**：
+  - CPU：2核或更高
+  - 内存：2GB或更高
+  - 磁盘：20GB可用空间
+- **软件**：
+  - Python 3.8或更高版本
+  - MySQL 5.7或更高版本
+  - 开放80端口（微信公众号需要）
 
-#### 1. 安装系统依赖
+## 一键自动部署
+
+我们提供了全新的一键自动部署脚本`unified_deploy.sh`，它可以解决部署过程中的常见问题，包括：
+
+1. 端口问题：自动处理80/8080端口配置
+2. 权限问题：自动设置绑定低端口特权
+3. Python环境问题：使用虚拟环境解决依赖安装问题
+4. 配置解析问题：确保ConfigParser包含必要的方法
+5. 数据库问题：自动配置和启动MySQL服务
+
+### 使用一键部署脚本
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y python python-pip mysql-client libmysqlclient-dev
+# 下载脚本
+wget https://raw.githubusercontent.com/your_username/recommender/master/scripts/unified_deploy.sh
+
+# 赋予执行权限
+chmod +x unified_deploy.sh
+
+# 执行部署脚本
+sudo ./unified_deploy.sh
 ```
 
-#### 2. 配置应用程序目录
+### 部署脚本参数
+
+脚本支持以下环境变量来自定义部署：
+
+- `INSTALL_DIR`：安装目录（默认：/opt/recommender）
+- `PORT`：Web服务器端口（默认：80）
+- `USE_NGINX`：是否使用Nginx反向代理（默认：false）
 
 ```bash
-# 创建安装目录
-sudo mkdir -p /opt/recommender
+# 示例：自定义安装目录和端口
+sudo INSTALL_DIR=/usr/local/recommender PORT=8080 ./unified_deploy.sh
 
-# 复制项目文件
-sudo cp -r /tmp/recommender/* /opt/recommender/
-
-# 设置执行权限
-sudo chmod +x /opt/recommender/scripts/*.sh
+# 示例：强制使用Nginx反向代理
+sudo USE_NGINX=true ./unified_deploy.sh
 ```
 
-#### 3. 安装Python依赖
+### 部署过程
+
+1. 系统依赖检查和安装
+2. MySQL服务配置
+3. 项目文件部署
+4. Python虚拟环境配置
+5. 配置解析器检查和修复
+6. 数据库初始化
+7. 服务端口配置
+8. 端口绑定权限设置
+9. 系统服务创建与启动
+10. Nginx配置（如需要）
+11. 防火墙设置
+
+部署完成后，脚本会显示摘要信息和常用管理命令。
+
+## 详细部署步骤
+
+### 1. 系统准备
+
+首先更新系统并安装必要的软件包：
 
 ```bash
-cd /opt/recommender
-sudo pip install -r requirements.txt
-```
-
-#### 4. 初始化数据库
-
-```bash
-# 配置数据库连接信息（根据实际情况修改）
-export DB_HOST=localhost
-export DB_PORT=3306
-export DB_ROOT_PASSWORD=your_mysql_root_password
-export DB_NAME=douban
-export DB_USER=douban_user
-export DB_PASSWORD=your_user_password
-
-# 运行数据库初始化脚本
-sudo -E bash /opt/recommender/scripts/init_database.sh
-```
-
-#### 5. 手动启动应用
-
-```bash
-cd /opt/recommender
-sudo python web_server/server.py
-```
-
-要将应用设置为后台服务，可以创建系统服务文件：
-
-```bash
-sudo bash -c 'cat > /etc/systemd/system/movie-recommender.service << EOF
-[Unit]
-Description=电影推荐系统服务
-After=network.target mysql.service
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/recommender
-ExecStart=/usr/bin/python /opt/recommender/web_server/server.py
-Restart=on-failure
-RestartSec=5
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=movie-recommender
-
-[Install]
-WantedBy=multi-user.target
-EOF'
-
-# 重载系统服务
-sudo systemctl daemon-reload
-
-# 启动服务
-sudo systemctl enable movie-recommender.service
-sudo systemctl start movie-recommender.service
-```
-
-### 故障排除
-
-如果部署过程中遇到问题，请检查以下几点：
-
-1. MySQL服务是否正常运行？
-   ```bash
-   sudo systemctl status mysql
-   ```
-
-2. 数据库是否正确初始化？
-   ```bash
-   mysql -u root -p -e "SHOW DATABASES;"
-   mysql -u root -p -e "USE douban; SHOW TABLES;"
-   ```
-
-3. 检查应用日志文件：
-   ```bash
-   sudo cat /opt/recommender/logs/deploy_*.log
-   sudo cat /opt/recommender/logs/db_init_*.log
-   sudo cat /opt/recommender/logs/data_processing.log
-   ```
-
-4. 检查系统服务日志：
-   ```bash
-   sudo journalctl -u movie-recommender.service
-   ```
-
-5. 检查防火墙是否允许80端口通信：
-   ```bash
-   sudo ufw status
-   # 如需开放端口
-   sudo ufw allow 80/tcp
-   ```
-
-### 更新应用
-
-如需更新应用，只需重新运行部署脚本即可。脚本会自动备份现有安装，然后再部署新版本：
-
-```bash
-# 进入新版本代码目录
-cd /path/to/new/version
-
-# 运行部署脚本
-sudo bash scripts/deploy.sh
-```
-
-### 系统维护
-
-#### 重启服务
-
-```bash
-sudo systemctl restart movie-recommender.service
-```
-
-#### 停止服务
-
-```bash
-sudo systemctl stop movie-recommender.service
-```
-
-#### 查看日志
-
-```bash
-# 查看实时日志
-sudo journalctl -u movie-recommender.service -f
-
-# 查看最近100行日志
-sudo journalctl -u movie-recommender.service -n 100
-```
-
-#### 数据库备份
-
-```bash
-# 备份数据库
-mysqldump -u root -p douban > /opt/recommender_backups/douban_$(date +%Y%m%d).sql
-```
-
-#### 系统备份
-
-```bash
-# 备份整个系统
-sudo cp -r /opt/recommender /opt/recommender_backups/recommender_$(date +%Y%m%d)
-```
-
-## 手动部署详细步骤
-
-如果自动部署脚本出现问题，您可以按照以下步骤手动部署：
-
-### 1. 准备安装目录
-
-```bash
-# 创建安装目录
-sudo mkdir -p /opt/recommender
-sudo mkdir -p /opt/recommender/{web_server,data_spider,scripts,sql,test_data,logs,backup,config}
-```
-
-### 2. 系统依赖安装
-
-```bash
+# 更新系统软件包
 sudo apt update
-sudo apt install -y python3 python3-pip python3-venv mysql-server libmysqlclient-dev git curl lsof
+sudo apt upgrade -y
+
+# 安装必要的软件包
+sudo apt install -y python3 python3-pip python3-venv mysql-server git curl wget net-tools libmysqlclient-dev
 ```
 
-### 3. 创建Python虚拟环境
+### 2. 配置MySQL
+
+安装并配置MySQL数据库：
 
 ```bash
-cd /opt/recommender
-sudo python3 -m venv venv
-sudo /opt/recommender/venv/bin/pip install --upgrade pip
-
-# 创建requirements.txt
-sudo bash -c 'cat > /opt/recommender/requirements.txt' << 'EOL'
-web.py>=0.62
-pymysql>=1.0.2
-lxml>=4.6.3
-requests>=2.25.1
-cryptography>=3.4.7
-python-dateutil>=2.8.2
-APScheduler>=3.9.1
-EOL
-
-# 安装Python依赖
-sudo /opt/recommender/venv/bin/pip install -r /opt/recommender/requirements.txt
-```
-
-### 4. 设置MySQL数据库
-
-```bash
-# 启动并设置MySQL自启动
+# 确保MySQL已启动
 sudo systemctl start mysql
 sudo systemctl enable mysql
 
-# 创建数据库和用户
-sudo mysql -e "CREATE DATABASE IF NOT EXISTS douban DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-sudo mysql -e "CREATE USER IF NOT EXISTS 'douban_user'@'localhost' IDENTIFIED BY 'MySQL_20050816Zln@233';"
-sudo mysql -e "GRANT ALL PRIVILEGES ON douban.* TO 'douban_user'@'localhost';"
-sudo mysql -e "FLUSH PRIVILEGES;"
+# 设置MySQL root密码（如果尚未设置）
+sudo mysql_secure_installation
+
+# 登录MySQL创建必要的数据库和用户
+sudo mysql -u root -p
 ```
 
-### 5. 创建数据库表结构
+在MySQL命令行中执行：
 
-```bash
-# 创建数据库表结构SQL文件
-sudo bash -c 'cat > /opt/recommender/sql/init_tables.sql' << 'EOL'
--- 电影信息表
-CREATE TABLE IF NOT EXISTS douban_movie (
-    id INT UNSIGNED AUTO_INCREMENT,
-    title VARCHAR(100) NOT NULL,
-    score FLOAT,
-    num INT,
-    link VARCHAR(200) NOT NULL,
-    time DATE,
-    address VARCHAR(50),
-    other_release VARCHAR(100),
-    actors VARCHAR(1000),
-    director VARCHAR(200),
-    category VARCHAR(100),
-    PRIMARY KEY(id),
-    UNIQUE KEY idx_link (link),
-    KEY idx_category (category),
-    KEY idx_score (score)
-) DEFAULT CHARSET=utf8mb4;
-
--- 用户信息表
-CREATE TABLE IF NOT EXISTS user_info (
-    id INT UNSIGNED AUTO_INCREMENT,
-    wx_id VARCHAR(100) NOT NULL,
-    start_time BIGINT,
-    last_active_time BIGINT,
-    user_name VARCHAR(50),
-    PRIMARY KEY(id),
-    UNIQUE KEY idx_wx_id (wx_id)
-) DEFAULT CHARSET=utf8mb4;
-
--- 用户搜索记录表
-CREATE TABLE IF NOT EXISTS seek_movie (
-    id INT UNSIGNED AUTO_INCREMENT,
-    user_id INT NOT NULL,
-    movie_id INT NOT NULL,
-    seek_time BIGINT,
-    search_term VARCHAR(100),
-    PRIMARY KEY(id),
-    KEY idx_user_id (user_id),
-    KEY idx_movie_id (movie_id),
-    KEY idx_seek_time (seek_time)
-) DEFAULT CHARSET=utf8mb4;
-
--- 用户评分表
-CREATE TABLE IF NOT EXISTS like_movie (
-    id INT UNSIGNED AUTO_INCREMENT,
-    user_id INT NOT NULL,
-    movie_id INT NOT NULL,
-    liking FLOAT,
-    rating_time BIGINT,
-    PRIMARY KEY(id),
-    UNIQUE KEY idx_user_movie (user_id, movie_id),
-    KEY idx_user_id (user_id),
-    KEY idx_movie_id (movie_id)
-) DEFAULT CHARSET=utf8mb4;
-EOL
-
-# 导入表结构
-sudo mysql -u douban_user -p'MySQL_20050816Zln@233' douban < /opt/recommender/sql/init_tables.sql
+```sql
+CREATE DATABASE douban DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'douban_user'@'localhost' IDENTIFIED BY 'MySQL_20050816Zln@233';
+GRANT ALL PRIVILEGES ON douban.* TO 'douban_user'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
 ```
 
-### 6. 创建数据库配置文件
+### 3. 获取项目代码
 
 ```bash
-sudo bash -c 'cat > /opt/recommender/config/database.conf' << 'EOL'
+# 创建项目目录
+sudo mkdir -p /opt/recommender
+
+# 克隆项目代码
+git clone https://github.com/your_username/recommender.git /tmp/recommender
+
+# 复制项目文件到目标目录
+sudo cp -r /tmp/recommender/* /opt/recommender/
+```
+
+### 4. 配置项目
+
+#### 4.1 创建Python虚拟环境
+
+由于Ubuntu和某些Linux发行版使用外部管理的Python环境（PEP 668），我们需要使用虚拟环境来安装项目依赖：
+
+```bash
+# 创建虚拟环境
+cd /opt/recommender
+sudo python3 -m venv venv
+
+# 使用虚拟环境安装依赖
+sudo venv/bin/pip install --upgrade pip
+sudo venv/bin/pip install -r requirements.txt
+```
+
+#### 4.2 配置数据库连接
+
+检查并编辑数据库配置文件：
+
+```bash
+sudo nano /opt/recommender/config/database.conf
+```
+
+确保配置文件内容如下：
+
+```ini
 [database]
 host = localhost
 port = 3306
@@ -492,215 +198,517 @@ user = douban_user
 password = MySQL_20050816Zln@233
 db = douban
 charset = utf8mb4
-EOL
+pool_size = 5
+timeout = 60
+reconnect_attempts = 3
+
+[service]
+port = 80
+token = HelloMovieRecommender
+encoding_key = X5hyGsEzWugANKlq9uDjtpGQZ40yL1axD9m147dPa1a
+debug = false
+log_level = INFO
+
+[recommender]
+similarity_threshold = 0.5
+min_ratings = 3
+max_recommendations = 10
 ```
 
-### 7. 创建启动和监控脚本
+### 5. 初始化数据库
 
-各种脚本的创建（启动、重启、健康检查等）请参见一键部署脚本的内容。
-
-### 8. 设置文件权限
+执行数据库初始化脚本：
 
 ```bash
-sudo chown -R root:root /opt/recommender
-sudo chmod -R 755 /opt/recommender
+# 给脚本添加执行权限
 sudo chmod +x /opt/recommender/scripts/*.sh
+
+# 执行数据库初始化脚本
+cd /opt/recommender
+sudo bash scripts/init_database.sh
+```
+
+如果需要指定MySQL root密码，可以使用：
+
+```bash
+sudo DB_ROOT_PASSWORD=your_mysql_root_password bash scripts/init_database.sh
+```
+
+### 6. 创建系统服务
+
+创建systemd服务文件，使用虚拟环境中的Python解释器：
+
+```bash
+sudo bash -c 'cat > /etc/systemd/system/movie-recommender.service << EOF
+[Unit]
+Description=电影推荐系统服务
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/recommender
+ExecStart=/opt/recommender/venv/bin/python /opt/recommender/web_server/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=movie-recommender
+# 允许绑定特权端口(80)
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
+EOF'
+```
+
+### 7. 启动服务
+
+```bash
+# 重载systemd配置
+sudo systemctl daemon-reload
+
+# 启用并启动服务
+sudo systemctl enable movie-recommender.service
+sudo systemctl start movie-recommender.service
+
+# 检查服务状态
+sudo systemctl status movie-recommender.service
+```
+
+### 8. 验证部署
+
+使用curl测试服务是否正常运行：
+
+```bash
+curl http://localhost/
+```
+
+检查端口监听状态：
+
+```bash
+sudo netstat -tuln | grep 80
+```
+
+## 端口配置
+
+微信公众号要求使用80端口。有两种方式确保服务能够使用80端口：
+
+### 方案1：直接使用80端口（默认方案）
+
+此方案要求服务以root权限运行或拥有`CAP_NET_BIND_SERVICE`权限：
+
+```bash
+# 使用我们提供的更新服务脚本
+sudo bash /opt/recommender/scripts/update_service.sh
+```
+
+### 方案2：使用Nginx反向代理
+
+如果您希望服务以非特权用户运行，或80端口被其他服务占用，可使用Nginx作为反向代理：
+
+```bash
+# 使用我们提供的Nginx配置脚本
+sudo bash /opt/recommender/scripts/setup_nginx.sh
+```
+
+此脚本会：
+1. 安装Nginx
+2. 配置服务使用8080端口
+3. 设置Nginx反向代理将80端口流量转发到8080端口
+4. 重启所有相关服务
+
+## 微信公众号配置
+
+在完成系统部署后，您需要配置微信公众号：
+
+1. 登录微信公众平台
+2. 进入开发 -> 基本配置
+3. 设置服务器地址(URL): `http://您服务器的IP地址/`
+4. 设置Token: 与`/opt/recommender/config/database.conf`中的`token`值保持一致
+5. 提交配置并等待验证
+
+更多微信公众号配置详情，请参考[微信公众平台开发文档](https://developers.weixin.qq.com/doc/offiaccount/Getting_Started/Overview.html)。
+
+### 微信公众号调试工具
+
+系统提供了微信调试工具，可以验证配置是否正确：
+
+```bash
+# 使用虚拟环境Python运行调试工具
+cd /opt/recommender
+venv/bin/python scripts/wechat_debug.py --validate
+```
+
+此工具将检查：
+- 服务器连接性
+- Token配置
+- 消息处理功能
+- 微信API调用
+
+## 常见问题排查
+
+### 自动诊断工具
+
+系统提供了自动诊断和修复工具：
+
+```bash
+# 诊断系统问题
+sudo bash /opt/recommender/scripts/troubleshoot.sh
+
+# 诊断并提示修复
+sudo bash /opt/recommender/scripts/troubleshoot.sh -f
+
+# 自动修复所有问题
+sudo bash /opt/recommender/scripts/troubleshoot.sh -fy
+```
+
+### 常见错误及解决方法
+
+#### 1. ModuleNotFoundError: No module named 'web'
+
+**问题**：缺少web.py模块。
+**解决方法**：
+```bash
+cd /opt/recommender
+sudo venv/bin/pip install web.py
+```
+
+#### 2. externally-managed-environment 错误
+
+**问题**：Ubuntu和某些Linux发行版使用外部管理的Python环境（PEP 668），禁止直接使用pip安装包。
+**解决方法**：使用Python虚拟环境：
+```bash
+# 确保安装了python3-venv
+sudo apt install -y python3-venv
+
+# 创建虚拟环境
+cd /opt/recommender
+sudo python3 -m venv venv
+
+# 使用虚拟环境安装依赖
+sudo venv/bin/pip install -r requirements.txt
+
+# 更新服务配置使用虚拟环境
+sudo sed -i 's|ExecStart=/usr/bin/python3|ExecStart=/opt/recommender/venv/bin/python|' /etc/systemd/system/movie-recommender.service
+sudo systemctl daemon-reload
+sudo systemctl restart movie-recommender.service
+```
+
+#### 3. 数据库连接错误
+
+**问题**：无法连接到MySQL数据库。
+**解决方法**：
+```bash
+# 检查MySQL服务状态
+sudo systemctl status mysql
+
+# 如果服务未运行，启动服务
+sudo systemctl start mysql
+
+# 验证数据库连接信息
+cd /opt/recommender
+grep -A8 '\[database\]' config/database.conf
+
+# 手动测试连接
+mysql -u douban_user -p"MySQL_20050816Zln@233" -h localhost -e "USE douban; SELECT 1;"
+
+# 重新初始化数据库
+sudo bash scripts/init_database.sh
+```
+
+#### 4. 80端口占用问题
+
+**问题**：80端口被其他服务占用。
+**解决方法**：
+```bash
+# 查看占用80端口的服务
+sudo netstat -tuln | grep ":80 "
+sudo lsof -i :80
+
+# 方案1：停止占用端口的服务
+sudo systemctl stop nginx  # 假设是nginx占用
+
+# 方案2：使用Nginx反向代理
+sudo bash /opt/recommender/scripts/setup_nginx.sh
+```
+
+#### 5. 服务启动失败
+
+**问题**：systemd服务启动失败。
+**解决方法**：
+```bash
+# 检查服务状态和日志
+sudo systemctl status movie-recommender.service
+sudo journalctl -u movie-recommender.service -n 50
+
+# 手动启动检查错误
+cd /opt/recommender
+sudo venv/bin/python web_server/main.py
+
+# 检查文件权限
+sudo chmod +x /opt/recommender/web_server/main.py
+sudo chown -R root:root /opt/recommender
+```
+
+#### 6. ConfigParser类问题
+
+**问题**：缺少get_section方法或其他配置解析问题。
+**解决方法**：
+```bash
+# 运行配置修复脚本
+cd /opt/recommender
+sudo bash scripts/fix_config_parser.sh
+
+# 或者使用统一部署脚本重新部署
+sudo bash scripts/unified_deploy.sh
+```
+
+#### 7. 内存不足问题
+
+**问题**：系统或MySQL内存使用过高，导致服务不稳定。
+**解决方法**：
+```bash
+# 检查内存使用情况
+free -h
+
+# 调整MySQL内存使用
+sudo nano /etc/mysql/mysql.conf.d/mysqld.cnf
+
+# 添加或修改以下配置
+# innodb_buffer_pool_size = 256M  # 减少缓冲池大小
+# max_connections = 50  # 减少最大连接数
+
+# 重启MySQL
+sudo systemctl restart mysql
 ```
 
 ## 系统维护
 
-### 1. 启动/停止/重启服务
+### 备份与恢复
+
+#### 数据库备份
 
 ```bash
-# 启动服务
-sudo /opt/recommender/scripts/start_service.sh
+# 创建备份目录
+sudo mkdir -p /opt/recommender_backups
 
-# 重启服务
-sudo /opt/recommender/scripts/restart_service.sh
+# 备份数据库
+sudo mysqldump -u root -p douban > /opt/recommender_backups/douban_$(date +%Y%m%d).sql
 
-# 停止服务
-sudo kill $(cat /opt/recommender/logs/service.pid)
+# 定期自动备份（每天凌晨3点）
+echo "0 3 * * * root mysqldump -u root -p'your_password' douban > /opt/recommender_backups/douban_\$(date +\%Y\%m\%d).sql" | sudo tee /etc/cron.d/backup_recommender
 ```
 
-### 2. 查看日志
+#### 数据库恢复
 
 ```bash
-# 查看实时服务日志
+# 从备份恢复
+sudo mysql -u root -p douban < /opt/recommender_backups/douban_YYYYMMDD.sql
+```
+
+#### 自动备份配置
+
+最新的`unified_deploy.sh`脚本会自动配置以下备份任务：
+
+1. 数据库每日备份（凌晨3点）
+2. 配置文件每周备份（周日凌晨4点）
+3. 系统日志每月归档（每月1日凌晨5点）
+
+备份保留策略：
+- 数据库备份保留30天
+- 配置备份保留90天
+- 日志归档保留365天
+
+### 日志管理
+
+```bash
+# 查看服务日志
+sudo journalctl -u movie-recommender.service -f
+
+# 查看应用日志
 sudo tail -f /opt/recommender/logs/web_server.log
 
-# 查看健康检查日志
-sudo cat /opt/recommender/logs/health_check.log
+# 查看错误日志
+sudo tail -f /opt/recommender/logs/error.log
+
+# 查看访问日志
+sudo tail -f /opt/recommender/logs/access.log
+
+# 日志轮转
+sudo nano /etc/logrotate.d/movie-recommender
 ```
 
-### 3. 手动备份数据库
+配置日志轮转：
 
-```bash
-sudo /opt/recommender/scripts/backup_db.sh
+```
+/opt/recommender/logs/*.log {
+    daily
+    missingok
+    rotate 14
+    compress
+    delaycompress
+    notifempty
+    create 0640 root root
+    postrotate
+        systemctl reload movie-recommender.service >/dev/null 2>&1 || true
+    endscript
+}
 ```
 
-### 4. 检查服务健康状态
+### 系统健康检查
+
+最新版本包含自动健康检查功能：
 
 ```bash
-sudo /opt/recommender/scripts/health_check.sh
+# 手动运行健康检查
+sudo bash /opt/recommender/scripts/health_check.sh
+
+# 健康检查报告
+sudo bash /opt/recommender/scripts/health_check.sh --report
 ```
 
-### 5. 更新代码
+健康检查会监控以下指标：
+- 系统资源使用率（CPU、内存、磁盘）
+- 服务状态和响应时间
+- 数据库连接和性能
+- 日志错误模式
+- 备份状态
+
+### 系统更新
 
 ```bash
-# 进入代码目录
+# 停止服务
+sudo systemctl stop movie-recommender.service
+
+# 备份当前版本
+sudo cp -r /opt/recommender /opt/recommender_backup_$(date +%Y%m%d)
+
+# 更新代码
 cd /opt/recommender
-
-# 拉取最新代码
 sudo git pull
 
-# 重启服务
-sudo /opt/recommender/scripts/restart_service.sh
+# 更新依赖
+sudo venv/bin/pip install -r requirements.txt
+
+# 启动服务
+sudo systemctl start movie-recommender.service
 ```
 
-## 常见问题排查
+## 高级配置
 
-### 1. 服务无法启动
+### 自定义端口
 
-检查80端口是否被占用：
+如果需要更改默认端口，请编辑配置文件：
 
 ```bash
-sudo netstat -tuln | grep 80
+sudo nano /opt/recommender/config/database.conf
 ```
 
-如果端口被占用，释放端口：
+修改`[service]`部分：
 
-```bash
-sudo /opt/recommender/scripts/check_port.sh 80
+```ini
+[service]
+port = 8080  # 使用自定义端口
 ```
 
-### 2. 数据库连接问题
-
-检查数据库连接配置是否正确：
+然后重启服务：
 
 ```bash
-mysql -u douban_user -p'MySQL_20050816Zln@233' -e "SELECT 1;" douban
-```
-
-如果连接失败，可能需要重启MySQL：
-
-```bash
-sudo systemctl restart mysql
-```
-
-### 3. 微信公众号无法接收消息
-
-检查微信公众号配置和服务器状态：
-
-```bash
-# 检查服务是否运行
-ps aux | grep python
-
-# 检查端口是否正常监听
-sudo netstat -tuln | grep 80
-
-# 测试服务可访问性
-curl -v http://localhost/
-```
-
-确保URL、Token等微信公众平台配置正确。
-
-### 4. 磁盘空间不足
-
-检查并清理磁盘空间：
-
-```bash
-# 检查磁盘使用情况
-df -h
-
-# 检查日志大小
-du -sh /opt/recommender/logs/
-
-# 清理旧日志文件
-find /opt/recommender/logs/ -name "*.log" -mtime +30 -delete
-
-# 清理旧备份
-find /opt/recommender/backup/ -name "*.sql" -mtime +30 -delete
-```
-
-### 5. 系统崩溃后的恢复
-
-```bash
-# 重启服务器后，可能需要手动启动服务
-sudo /opt/recommender/scripts/start_service.sh
-
-# 如果数据库损坏，可以从备份恢复
-# 选择最新的备份文件
-BACKUP_FILE=$(ls -t /opt/recommender/backup/douban_*.sql | head -1)
-# 恢复数据库
-mysql -u douban_user -p'MySQL_20050816Zln@233' douban < $BACKUP_FILE
-```
-
-## 安全建议
-
-1. 定期更改数据库密码
-2. 设置防火墙，仅开放必要端口
-3. 定期更新系统和依赖包
-4. 设置HTTPS提高安全性
-5. 定期备份重要数据
-
-### 4. 重启和维护系统
-
-如果您需要重启系统，可以使用以下命令：
-
-```bash
-# 重启电影推荐系统服务
 sudo systemctl restart movie-recommender.service
-
-# 查看服务状态
-sudo systemctl status movie-recommender.service
-
-# 查看日志
-sudo journalctl -u movie-recommender.service -f
 ```
 
-如果遇到问题，可以检查日志文件：
+如果更改为非特权端口（>1024），可以移除特权端口绑定权限并使用普通用户运行服务。
+
+### 多实例部署
+
+如果需要部署多个实例（如测试环境和生产环境），可以：
+
+1. 使用不同的安装目录：
 
 ```bash
-# 查看Web服务器日志
-sudo cat /opt/recommender/logs/web_server.log
-
-# 查看数据库初始化日志
-sudo ls -la /opt/recommender/logs/db_init_*.log
-sudo cat /opt/recommender/logs/db_init_[最新日期].log
+sudo INSTALL_DIR=/opt/recommender_test bash scripts/unified_deploy.sh
 ```
 
-### 5. 常见问题排查
-
-#### 1. 服务无法启动
-
-检查服务状态和日志：
-```bash
-sudo systemctl status movie-recommender.service
-sudo journalctl -u movie-recommender.service -n 50
-```
-
-可能的原因和解决方法：
-- Python路径错误：修改服务文件中的Python路径
-- 权限问题：确保服务有足够的权限
-- 端口冲突：检查80端口是否被其他服务占用
-
-#### 2. 网页可以访问但微信无法连接
-
-- 检查微信公众号配置的URL是否正确
-- 确认服务器80端口是否对外开放
-- 验证Token配置是否正确（应与config/database.conf中的token一致）
-
-#### 3. 数据库连接失败
+2. 创建不同的服务名称：
 
 ```bash
-# 检查数据库服务是否运行
-sudo systemctl status mysql
-
-# 尝试手动连接数据库
-mysql -udouban_user -pMySQL_20050816Zln@233 -h localhost douban
+sudo cp /etc/systemd/system/movie-recommender.service /etc/systemd/system/movie-recommender-test.service
+sudo sed -i 's|/opt/recommender|/opt/recommender_test|g' /etc/systemd/system/movie-recommender-test.service
 ```
 
-可能的原因：
-- MySQL服务未启动
-- 数据库用户密码不正确
-- 数据库权限配置有误 
+3. 配置不同的端口。
+
+### 性能优化
+
+对于高负载系统，可以考虑：
+
+1. 增加数据库连接池大小：
+
+```ini
+[database]
+pool_size = 10  # 增加连接池大小
+```
+
+2. 启用数据缓存：
+   - 添加Redis等缓存服务
+   - 在热门请求路径上实现缓存
+
+3. 负载均衡：
+   - 使用Nginx上游服务器组实现负载均衡
+   - 部署多个应用实例
+
+### 安全增强
+
+为提高系统安全性，请考虑以下配置：
+
+1. 启用HTTPS（使用Let's Encrypt）：
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d your-domain.com
+```
+
+2. 加强MySQL安全性：
+
+```bash
+# 限制MySQL只监听本地连接
+sudo nano /etc/mysql/mysql.conf.d/mysqld.cnf
+# 添加或确保以下行：
+# bind-address = 127.0.0.1
+```
+
+3. 设置防火墙规则：
+
+```bash
+sudo apt install -y ufw
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow ssh
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+```
+
+## 变更日志
+
+### 版本2.1.0 (2025-05-15)
+- 添加了统一部署脚本`unified_deploy.sh`
+- 增强了日志管理和备份功能
+- 添加了健康检查系统
+- 改进了错误诊断和修复工具
+- 增加了微信公众号调试工具
+
+### 版本2.0.1 (2025-05-10)
+- 修复了外部管理的Python环境问题
+- 改进了数据库初始化流程
+- 提高了部署脚本的健壮性
+- 添加了更多排障指南
+
+### 版本2.0.0 (2025-05-01)
+- 全面更新部署文档
+- 添加了自动部署脚本
+- 提供了详细的排障和维护指南
+- 优化了系统配置

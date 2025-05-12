@@ -72,6 +72,34 @@ class ConfigParser:
             'max_recommendations': '10'
         }
     
+    def get_section(self, section):
+        """
+        获取指定配置部分
+        
+        参数:
+            section: 配置部分名称 (database, service, recommender)
+        
+        返回:
+            dict: 配置部分字典
+        """
+        if section == 'database':
+            return self.get_database_config()
+        elif section == 'service':
+            return self.get_service_config()
+        elif section == 'recommender':
+            return self.get_recommender_config()
+        else:
+            # 对于未知部分，尝试直接获取
+            try:
+                if section in self.config:
+                    return dict(self.config[section])
+                else:
+                    print(f"警告: 配置部分 {section} 不存在")
+                    return {}
+            except Exception as e:
+                print(f"获取配置部分 {section} 出错: {str(e)}")
+                return {}
+    
     def get_database_config(self):
         """
         获取数据库配置
@@ -156,4 +184,5 @@ if __name__ == "__main__":
     config_parser = ConfigParser()
     print("数据库配置:", config_parser.get_database_config())
     print("服务配置:", config_parser.get_service_config())
-    print("推荐系统配置:", config_parser.get_recommender_config()) 
+    print("推荐系统配置:", config_parser.get_recommender_config())
+    print("通过get_section获取数据库配置:", config_parser.get_section('database')) 

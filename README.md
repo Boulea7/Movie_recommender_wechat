@@ -19,6 +19,36 @@
 - **配置管理**：配置文件支持系统灵活配置
 - **连接池**：数据库连接池和自动重连机制
 
+## 快速部署指南
+
+以下是在纯净系统上快速部署电影推荐系统的步骤：
+
+```bash
+# 1. 更新系统并安装Git
+sudo apt update
+sudo apt install -y git
+
+# 2. 克隆项目代码
+git clone https://github.com/your_username/recommender.git /tmp/recommender
+
+# 3. 执行部署脚本
+cd /tmp/recommender
+sudo chmod +x scripts/*.sh
+sudo bash scripts/deploy.sh
+
+# 4. 验证部署
+curl http://localhost/
+sudo systemctl status movie-recommender.service
+```
+
+如遇问题，可使用自动诊断工具：
+
+```bash
+sudo bash /opt/recommender/scripts/troubleshoot.sh -f
+```
+
+详细部署步骤请参考[部署文档](deployment.md)。
+
 ## 交互方式
 
 用户可以通过以下命令与公众号交互：
@@ -66,9 +96,19 @@
 3. **用户搜索记录表(seek_movie)**：记录用户的搜索历史
 4. **用户评分表(like_movie)**：存储用户对电影的评分
 
-## 部署说明
+## 端口配置
 
-详细部署步骤请参考[部署文档](deployment.md)。
+微信公众号要求使用80端口通信。本系统提供两种配置方式：
+
+1. **直接使用80端口**（默认方式）：
+   ```bash
+   sudo bash /opt/recommender/scripts/update_service.sh
+   ```
+
+2. **使用Nginx反向代理**（推荐生产环境使用）：
+   ```bash
+   sudo bash /opt/recommender/scripts/setup_nginx.sh
+   ```
 
 ## 项目结构
 
@@ -81,12 +121,13 @@ recommender/
 ├── config/               # 配置文件目录
 │   └── database.conf     # 数据库和系统配置
 ├── scripts/              # 部署脚本
-│   ├── setup.sh          # 环境搭建脚本
-│   ├── check_port.sh     # 端口检查脚本
-│   ├── start_service.sh  # 服务启动脚本
+│   ├── deploy.sh         # 自动部署脚本
+│   ├── init_database.sh  # 数据库初始化脚本
+│   ├── update_service.sh # 服务更新脚本
+│   ├── setup_nginx.sh    # Nginx配置脚本 
+│   ├── troubleshoot.sh   # 问题诊断与修复脚本
 │   ├── restart_service.sh# 服务重启脚本
-│   ├── backup_db.sh      # 数据库备份脚本
-│   └── health_check.sh   # 系统健康检查脚本
+│   └── check_port.sh     # 端口检查脚本
 ├── sql/                  # SQL脚本
 │   └── init_tables.sql   # 初始表结构创建脚本
 ├── web_server/           # Web服务代码
@@ -103,43 +144,80 @@ recommender/
 ├── logs/                 # 日志目录
 │   ├── web_server.log    # Web服务日志
 │   └── error.log         # 错误日志
-├── backup/               # 数据库备份目录
 └── test_data/            # 测试数据
     └── sample_movies.sql # 样本电影数据
 ``` 
 
 ## 系统维护
 
-### 启动和停止服务
+### 服务管理命令
 
 ```bash
 # 启动服务
-/opt/recommender/scripts/start_service.sh
+sudo systemctl start movie-recommender.service
 
 # 重启服务
-/opt/recommender/scripts/restart_service.sh
+sudo systemctl restart movie-recommender.service
+
+# 停止服务
+sudo systemctl stop movie-recommender.service
+
+# 查看服务状态
+sudo systemctl status movie-recommender.service
+
+# 查看服务日志
+sudo journalctl -u movie-recommender.service -f
+
+# 检查端口
+sudo netstat -tuln | grep 80
 ```
 
-### 数据库备份
+### 问题诊断与修复
+
+系统提供了自动诊断与修复工具：
 
 ```bash
-# 手动备份数据库
-/opt/recommender/scripts/backup_db.sh
+# 诊断模式（仅显示问题）
+sudo bash /opt/recommender/scripts/troubleshoot.sh
+
+# 诊断并提示修复
+sudo bash /opt/recommender/scripts/troubleshoot.sh -f
+
+# 诊断并自动修复所有问题
+sudo bash /opt/recommender/scripts/troubleshoot.sh -fy
 ```
 
-### 健康检查
+此工具会自动检查：
+- 安装目录和文件完整性
+- 配置文件正确性
+- 系统服务状态
+- 端口占用情况
+- 防火墙配置
+- 服务可访问性
+- 日志配置
+- 数据库连接状态
+
+### 数据库操作
 
 ```bash
-# 检查系统健康状态
-/opt/recommender/scripts/health_check.sh
+# 连接到系统数据库
+mysql -u douban_user -p"MySQL_20050816Zln@233" douban
+
+# 备份数据库
+sudo mysqldump -u root -p douban > /opt/recommender_backups/douban_$(date +%Y%m%d).sql
+
+# 从备份恢复
+sudo mysql -u root -p douban < /opt/recommender_backups/douban_20250510.sql
 ```
 
 ## 更新日志
 
-### 版本 1.0.0 (2023-05-20)
-- 初始版本发布
-- 基本搜索和推荐功能
-- 微信公众号接口
+### 版本 2.0.0 (2025-05-10)
+- 全面重构部署流程，优化系统稳定性
+- 新增自动诊断与修复工具
+- 优化服务配置，解决端口绑定问题
+- 添加Nginx反向代理支持
+- 完善系统文档
 
 ### 版本 1.1.0 (2023-05-25)
 - 增加配置文件支持
@@ -149,36 +227,54 @@ recommender/
 - 添加系统健康检查
 - 增强推荐算法
 
+### 版本 1.0.0 (2023-05-20)
+- 初始版本发布
+- 基本搜索和推荐功能
+- 微信公众号接口
+
 ## 最近更新
 
-### 2023-05-25 系统稳定性更新
+### 2025-05-10 系统部署与稳定性增强
 
-1. **修复Web服务访问问题**
-   - 修改Web服务器配置，监听所有IP地址(0.0.0.0)而不仅是localhost
-   - 更新服务定义文件，使用Python 3而不是旧版Python 2
-   - 添加端口绑定权限，确保服务可以绑定80端口
+1. **部署流程重构**
+   - 重写部署文档和脚本，支持纯净系统一键部署
+   - 添加自动诊断与修复工具(troubleshoot.sh)，简化故障排查
+   - 增强部署脚本健壮性，智能处理常见错误
 
-2. **编码处理优化**
-   - 移除不必要的encode/decode操作，提高Python 3兼容性
-   - 标准化所有字符串处理方式，避免中文乱码问题
+2. **服务配置增强**
+   - 增强systemd服务定义，确保绑定特权端口和自动重启
+   - 优化部署脚本，自动处理防火墙和端口配置
+   - 完善日志记录，便于问题诊断
 
-3. **配置系统增强**
-   - 完善配置文件读取功能，从config/database.conf读取所有配置项
-   - 添加日志记录功能，方便调试和问题排查
+3. **微信公众号兼容性**
+   - 确保正确使用80端口，满足微信公众号要求
+   - 提供Nginx反向代理方案，解决端口冲突问题
+   - 添加服务可访问性自动检测
 
-4. **数据库初始化改进**
-   - 确保所有必要的数据表都会被正确创建
-   - 优化数据表索引，提高查询性能
+4. **文档系统更新**
+   - 全面重构部署文档，提供详细的步骤和排错指南
+   - 更新README.md，包含快速部署指南和维护命令
+   - 增加系统架构和数据模型说明
 
-5. **部署文档更新**
-   - 添加快速重启指南，简化服务重启流程
-   - 新增常见问题排查章节，帮助用户解决部署问题
+### 2025-05-09 端口配置和微信集成优化
 
-6. **其他改进**
-   - 修改署名为"电影推荐系统团队"
-   - 增强错误处理，提高系统稳定性
-   - 优化日志输出，便于监控系统运行状态
+1. **端口配置优化**
+   - 修复服务默认使用8080端口的问题，确保正确使用配置文件中的80端口设置
+   - 添加端口绑定权限，确保服务可以绑定特权端口(80)
+   - 提供Nginx反向代理配置方案，解决端口冲突问题
+
+2. **防火墙配置**
+   - 添加防火墙配置说明，确保80端口可被外部访问
+   - 提供端口检查和故障排查步骤
+
+3. **服务配置优化**
+   - 更新systemd服务配置，确保服务自动重启和日志记录
+   - 添加update_service.sh脚本，简化服务配置更新流程
+
+4. **文档更新**
+   - 在部署文档中添加详细的端口配置和Nginx反向代理说明
+   - 新增端口故障排查指南，帮助用户解决网络访问问题
 
 ## 贡献者
 
-- AI工程师 - 主要开发者 
+- 电影推荐系统团队 - 开发与维护 
